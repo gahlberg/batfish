@@ -19,8 +19,8 @@ public final class BgpAdvertisementGroupTest {
 
   @Test
   public void testJavaSerialization() throws IOException {
-    BgpAdvertisementGroup bgpAdvertisementGroup =
-        BgpAdvertisementGroup.builder()
+    EbgpAdvertisementGroup bgpAdvertisementGroup =
+        EbgpAdvertisementGroup.builder()
             .setAsPath(AsPath.ofSingletonAsSets(2L))
             .setDescription("hello")
             .setExtendedCommunities(ImmutableSet.of(new ExtendedCommunity(12345678L)))
@@ -40,8 +40,8 @@ public final class BgpAdvertisementGroupTest {
 
   @Test
   public void testJsonSerialization() throws IOException {
-    BgpAdvertisementGroup bgpAdvertisementGroup =
-        BgpAdvertisementGroup.builder()
+    EbgpAdvertisementGroup bgpAdvertisementGroup =
+        EbgpAdvertisementGroup.builder()
             .setAsPath(AsPath.ofSingletonAsSets(2L))
             .setDescription("hello")
             .setExtendedCommunities(ImmutableSet.of(new ExtendedCommunity(12345678L)))
@@ -57,19 +57,19 @@ public final class BgpAdvertisementGroupTest {
             .build();
 
     assertThat(
-        BatfishObjectMapper.clone(bgpAdvertisementGroup, BgpAdvertisementGroup.class),
+        BatfishObjectMapper.clone(bgpAdvertisementGroup, EbgpAdvertisementGroup.class),
         equalTo(bgpAdvertisementGroup));
   }
 
   @Test
   public void testEquals() {
-    BgpAdvertisementGroup.Builder builder =
-        BgpAdvertisementGroup.builder()
+    EbgpAdvertisementGroup.Builder builder =
+        EbgpAdvertisementGroup.builder()
             .setAsPath(AsPath.ofSingletonAsSets())
             .setPrefixes(ImmutableSet.of(Prefix.ZERO))
             .setRxPeer(Ip.ZERO)
             .setTxPeer(Ip.ZERO);
-    BgpAdvertisementGroup initial = builder.build();
+    EbgpAdvertisementGroup initial = builder.build();
     new EqualsTester()
         .addEqualityGroup(new Object())
         .addEqualityGroup(initial, initial, builder.build())

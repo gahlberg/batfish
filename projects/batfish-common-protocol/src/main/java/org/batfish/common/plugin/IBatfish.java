@@ -32,6 +32,7 @@ import org.batfish.datamodel.answers.MajorIssueConfig;
 import org.batfish.datamodel.answers.ParseEnvironmentBgpTablesAnswerElement;
 import org.batfish.datamodel.answers.ParseEnvironmentRoutingTablesAnswerElement;
 import org.batfish.datamodel.answers.ParseVendorConfigurationAnswerElement;
+import org.batfish.datamodel.bgp.EbgpAdvertisementGroup;
 import org.batfish.datamodel.collections.BgpAdvertisementsByVrf;
 import org.batfish.datamodel.collections.RoutesByVrf;
 import org.batfish.datamodel.flow.Trace;
@@ -149,6 +150,8 @@ public interface IBatfish extends IPluginConsumer {
   SortedMap<String, Configuration> loadConfigurations();
 
   ConvertConfigurationAnswerElement loadConvertConfigurationAnswerElementOrReparse();
+
+  List<EbgpAdvertisementGroup> loadEbgpAdvertisementGroups();
 
   DataPlane loadDataPlane();
 

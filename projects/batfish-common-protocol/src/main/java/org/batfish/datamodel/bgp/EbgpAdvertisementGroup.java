@@ -26,7 +26,7 @@ import org.batfish.datamodel.Prefix;
  * specified by the other properties of this class.
  */
 @ParametersAreNonnullByDefault
-public final class BgpAdvertisementGroup implements Serializable {
+public final class EbgpAdvertisementGroup implements Serializable {
 
   public static final class Builder {
 
@@ -64,12 +64,12 @@ public final class BgpAdvertisementGroup implements Serializable {
       _standardCommunities = ImmutableSet.of();
     }
 
-    public @Nonnull BgpAdvertisementGroup build() {
+    public @Nonnull EbgpAdvertisementGroup build() {
       checkArgument(_asPath != null, "Missing %s", PROP_AS_PATH);
       checkArgument(!_prefixes.isEmpty(), "%s must be nonempty", PROP_PREFIXES);
       checkArgument(_rxPeer != null, "Missing %s", PROP_RX_PEER);
       checkArgument(_txPeer != null, "Missing %s", PROP_TX_PEER);
-      return new BgpAdvertisementGroup(
+      return new EbgpAdvertisementGroup(
           _asPath,
           _description,
           _extendedCommunities,
@@ -198,7 +198,7 @@ public final class BgpAdvertisementGroup implements Serializable {
   }
 
   @JsonCreator
-  private static @Nonnull BgpAdvertisementGroup create(
+  private static @Nonnull EbgpAdvertisementGroup create(
       @JsonProperty(PROP_AS_PATH) @Nullable AsPath asPath,
       @JsonProperty(PROP_DESCRIPTION) @Nullable String description,
       @JsonProperty(PROP_EXTENDED_COMMUNITIES) @Nullable Set<ExtendedCommunity> extendedCommunities,
@@ -231,7 +231,7 @@ public final class BgpAdvertisementGroup implements Serializable {
         PROP_TX_AS,
         MAX_AS_NUMBER);
     checkArgument(txPeer != null, "Missing %s", PROP_TX_PEER);
-    return new BgpAdvertisementGroup(
+    return new EbgpAdvertisementGroup(
         asPath,
         firstNonNull(description, ""),
         ImmutableSet.copyOf(firstNonNull(extendedCommunities, ImmutableSet.of())),
@@ -270,7 +270,7 @@ public final class BgpAdvertisementGroup implements Serializable {
 
   private final Ip _txPeer;
 
-  private BgpAdvertisementGroup(
+  private EbgpAdvertisementGroup(
       AsPath asPath,
       String description,
       Set<ExtendedCommunity> extendedCommunities,
@@ -395,10 +395,10 @@ public final class BgpAdvertisementGroup implements Serializable {
     if (this == obj) {
       return true;
     }
-    if (!(obj instanceof BgpAdvertisementGroup)) {
+    if (!(obj instanceof EbgpAdvertisementGroup)) {
       return false;
     }
-    BgpAdvertisementGroup rhs = (BgpAdvertisementGroup) obj;
+    EbgpAdvertisementGroup rhs = (EbgpAdvertisementGroup) obj;
     return _asPath.equals(rhs._asPath)
         && _description.equals(rhs._description)
         && _extendedCommunities.equals(rhs._extendedCommunities)
