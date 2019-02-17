@@ -3,7 +3,6 @@ package org.batfish.datamodel.routing_policy.expr;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Objects;
-import org.batfish.common.BatfishException;
 import org.batfish.datamodel.routing_policy.Environment;
 import org.batfish.datamodel.routing_policy.Result;
 
@@ -26,7 +25,7 @@ public final class MatchSourceVrf extends BooleanExpr {
 
   @Override
   public Result evaluate(Environment environment) {
-    throw new BatfishException("No implementation for MatchSourceVrf.evaluate()");
+    return new Result(environment.getRouteSourceVrf().equals(_sourceVrf));
   }
 
   @Override
