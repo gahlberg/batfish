@@ -4386,7 +4386,7 @@ public final class FlatJuniperGrammarTest {
      * Resulting list of VRFs whose routes to import should have the referenced VRFs in the order
      * they were referenced, ignoring second reference to VRF1, not including undefined MYSTERY_VRF.
      */
-    Vrf defaultVrf = c.getVrfs().get(Configuration.DEFAULT_VRF_NAME);
+    Vrf defaultVrf = c.getVrfs().get(DEFAULT_VRF_NAME);
     assertThat(defaultVrf.getInstanceImportVrfs(), contains("VRF3", "VRF1", "VRF2"));
 
     // Instance import policy should start with SetDefaultPolicy, then FirstMatchChain with policies
