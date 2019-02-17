@@ -10,6 +10,7 @@ import static org.batfish.datamodel.acl.AclLineMatchExprs.match;
 import static org.batfish.datamodel.acl.AclLineMatchExprs.matchDst;
 import static org.batfish.datamodel.acl.AclLineMatchExprs.matchSrcInterface;
 import static org.batfish.datamodel.matchers.AaaAuthenticationLoginListMatchers.hasMethods;
+import static org.batfish.datamodel.matchers.AnnotatedRouteMatchers.hasSourceVrf;
 import static org.batfish.datamodel.matchers.BgpNeighborMatchers.hasAllowLocalAsIn;
 import static org.batfish.datamodel.matchers.BgpNeighborMatchers.hasClusterId;
 import static org.batfish.datamodel.matchers.BgpNeighborMatchers.hasEnforceFirstAs;
@@ -43,6 +44,7 @@ import static org.batfish.datamodel.matchers.DataModelMatchers.hasRouteFilterLis
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasUndefinedReference;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasUndefinedReferenceWithReferenceLines;
 import static org.batfish.datamodel.matchers.GeneratedRouteMatchers.isDiscard;
+import static org.batfish.datamodel.matchers.HasAbstractRouteMatchers.hasNetwork;
 import static org.batfish.datamodel.matchers.HasAbstractRouteMatchers.hasPrefix;
 import static org.batfish.datamodel.matchers.IkePhase1PolicyMatchers.hasIkePhase1Key;
 import static org.batfish.datamodel.matchers.IkePhase1PolicyMatchers.hasIkePhase1Proposals;
@@ -4396,6 +4398,29 @@ public final class FlatJuniperGrammarTest {
     assertThat(
         ((If) instanceImportStatements.get(1)).getGuard(),
         equalTo(new FirstMatchChain(ImmutableList.of(new CallExpr("PS1"), new CallExpr("PS2")))));
+
+    Batfish batfish = BatfishTestUtils.getBatfish(ImmutableSortedMap.of(hostname, c), _folder);
+    batfish.computeDataPlane();
+    DataPlane dp = batfish.loadDataPlane();
+
+    /*
+     * instance-import policies accept routes from VRF1, which has 1.1.1.1/30, but rejects routes
+     * from VRF2, which has 2.2.2.2/30. Default VRF should have only 1.1.1.1/30.
+     */
+    ImmutableMap<String, Set<AnnotatedRoute<AbstractRoute>>> routes =
+        dp.getRibs().get(hostname).entrySet().stream()
+            .collect(ImmutableMap.toImmutableMap(Entry::getKey, e -> e.getValue().getRoutes()));
+    assertThat(routes.get(DEFAULT_VRF_NAME), hasSize(1));
+    assertThat(
+        routes.get(DEFAULT_VRF_NAME),
+        hasItem(
+            allOf(hasNetwork(equalTo(Prefix.parse("1.1.1.1/30"))), hasSourceVrf(equalTo("VRF1")))));
+
+    // Ensure that VRF2 does in fact have 2.2.2.2/30, as expected
+    assertThat(
+        routes.get("VRF2"),
+        hasItem(
+            allOf(hasNetwork(equalTo(Prefix.parse("2.2.2.2/30"))), hasSourceVrf(equalTo("VRF2")))));
   }
 
   @Test

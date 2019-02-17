@@ -31,6 +31,17 @@ final class HasAbstractRouteMatchersImpl {
     }
   }
 
+  static final class HasNetwork extends FeatureMatcher<HasAbstractRoute, Prefix> {
+    HasNetwork(@Nonnull Matcher<? super Prefix> subMatcher) {
+      super(subMatcher, "A HasAbstractRoute with network:", "network");
+    }
+
+    @Override
+    protected Prefix featureValueOf(HasAbstractRoute actual) {
+      return actual.getNetwork();
+    }
+  }
+
   static final class HasNextHopInterface extends FeatureMatcher<HasAbstractRoute, String> {
     HasNextHopInterface(@Nonnull Matcher<? super String> subMatcher) {
       super(subMatcher, "A HasAbstractRoute with nextHopInterface:", "nextHopInterface");
