@@ -275,6 +275,7 @@ import org.batfish.datamodel.EigrpInternalRoute;
 import org.batfish.datamodel.EncryptionAlgorithm;
 import org.batfish.datamodel.Flow;
 import org.batfish.datamodel.FlowState;
+import org.batfish.datamodel.HasAbstractRoute;
 import org.batfish.datamodel.HeaderSpace;
 import org.batfish.datamodel.IcmpType;
 import org.batfish.datamodel.IkeAuthenticationMethod;
@@ -2590,7 +2591,7 @@ public class CiscoGrammarTest {
         dataPlanePlugin.getRoutes(batfish.loadDataPlane());
     Set<AbstractRoute> r3Routes = unannotateRoutes(routes.get("r3").get(DEFAULT_VRF_NAME));
     Set<Prefix> r3Prefixes =
-        r3Routes.stream().map(r -> r.getAbstractRoute().getNetwork()).collect(Collectors.toSet());
+        r3Routes.stream().map(HasAbstractRoute::getNetwork).collect(Collectors.toSet());
     Prefix r1Loopback = Prefix.parse("1.1.1.1/32");
     assertTrue(r3Prefixes.contains(r1Loopback));
 
