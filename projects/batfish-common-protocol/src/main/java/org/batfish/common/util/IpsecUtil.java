@@ -1,24 +1,26 @@
 package org.batfish.common.util;
 
-import static org.batfish.common.util.CommonUtil.initPrivateIpsByPublicIp;
+import static org.batfish.datamodel.transformation.TransformationUtil.hasSourceNat;
+import static org.batfish.datamodel.transformation.TransformationUtil.sourceNatPoolIps;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Streams;
-import com.google.common.graph.ImmutableValueGraph;
+import com.google.common.graph.EndpointPair;
 import com.google.common.graph.MutableValueGraph;
 import com.google.common.graph.ValueGraph;
 import com.google.common.graph.ValueGraphBuilder;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -27,7 +29,10 @@ import org.batfish.datamodel.Edge;
 import org.batfish.datamodel.IkePhase1Key;
 import org.batfish.datamodel.IkePhase1Policy;
 import org.batfish.datamodel.IkePhase1Proposal;
+import org.batfish.datamodel.Interface;
+import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.Ip;
+import org.batfish.datamodel.IpWildcard;
 import org.batfish.datamodel.IpWildcardSetIpSpace;
 import org.batfish.datamodel.IpsecDynamicPeerConfig;
 import org.batfish.datamodel.IpsecPeerConfig;
@@ -37,20 +42,18 @@ import org.batfish.datamodel.IpsecPhase2Proposal;
 import org.batfish.datamodel.IpsecSession;
 import org.batfish.datamodel.IpsecStaticPeerConfig;
 import org.batfish.datamodel.NetworkConfigurations;
-import org.batfish.datamodel.Topology;
 import org.batfish.datamodel.collections.NodeInterfacePair;
+import org.batfish.datamodel.ipsec.IpsecTopology;
 
 public class IpsecUtil {
 
   /**
-   * Compute the IPSec topology -- a network of {@link IpsecPeerConfigId}s connected by {@link
-   * IpsecSession}s
+   * Compute the initial IPsec topology
    *
    * @param configurations {@link Configuration}s for which the topology has to be computed
-   * @return the constructed {@link ValueGraph} for the IPSec topology
+   * @return {@link IpsecTopology}
    */
-  public static ValueGraph<IpsecPeerConfigId, IpsecSession> initIpsecTopology(
-      Map<String, Configuration> configurations) {
+  public static IpsecTopology initIpsecTopology(Map<String, Configuration> configurations) {
 
     NetworkConfigurations networkConfigurations = NetworkConfigurations.of(configurations);
     Map<Ip, Set<IpsecPeerConfigId>> localIpIpsecPeerConfigIds = new HashMap<>();
@@ -119,7 +122,7 @@ public class IpsecUtil {
               });
     }
 
-    return ImmutableValueGraph.copyOf(graph);
+    return new IpsecTopology(graph);
   }
 
   /**
@@ -152,13 +155,17 @@ public class IpsecUtil {
    * respective fields for IKE P1 proposals, IKE P1 keys and IPSec P2 proposals populated depending
    * on the negotiation.
    */
+  @VisibleForTesting
   @Nonnull
-  private static IpsecSession getIpsecSession(
+  static IpsecSession getIpsecSession(
       Configuration initiatorOwner,
       Configuration peerOwner,
       IpsecStaticPeerConfig initiator,
       IpsecPeerConfig candidatePeer) {
     IpsecSession.Builder ipsecSessionBuilder = IpsecSession.builder();
+
+    ipsecSessionBuilder.setCloud(
+        IpsecSession.isCloudConfig(initiatorOwner) || IpsecSession.isCloudConfig(peerOwner));
 
     negotiateIkeP1(initiatorOwner, peerOwner, initiator, candidatePeer, ipsecSessionBuilder);
 
@@ -380,37 +387,29 @@ public class IpsecUtil {
   }
 
   /**
-   * Given a {@link ValueGraph} between {@link IpsecPeerConfigId}s, trims the edges in current
-   * {@link Topology} which are not fully established in the IPsec topology (e.g. they do not have a
-   * negotiated {@link IpsecPhase2Proposal})
+   * Given an {@link IpsecTopology}, returns a new {@link IpsecTopology} containing only the edges
+   * which use tunnel interfaces and are compatible
    *
-   * @param edges the network's {@link Topology} edges
-   * @param ipsecTopology original IPsec topology's {@link ValueGraph}
+   * @param ipsecTopology {@link IpsecTopology} corresponding to the compatible IPsec edges
+   *     established between Tunnel interfaces
    * @param configurations {@link Map} of {@link Configuration} to configuration names
+   * @return {@link IpsecTopology}
    */
-  public static Set<Edge> computeFailedIpsecSessionEdges(
-      SortedSet<Edge> edges,
-      ValueGraph<IpsecPeerConfigId, IpsecSession> ipsecTopology,
-      Map<String, Configuration> configurations) {
+  public static IpsecTopology retainCompatibleTunnelEdges(
+      IpsecTopology ipsecTopology, Map<String, Configuration> configurations) {
     NetworkConfigurations networkConfigurations = NetworkConfigurations.of(configurations);
 
-    // Set of successful IPsec edges
-    Set<Edge> successfulIPsecEdges = new HashSet<>();
-    // NodeInterface pairs running IPsec peering on tunnel interfaces
-    Set<NodeInterfacePair> tunnelIpsecEndpoints = new HashSet<>();
-
-    for (IpsecPeerConfigId endPointU : ipsecTopology.nodes()) {
+    MutableValueGraph<IpsecPeerConfigId, IpsecSession> prunedIpsecTopology =
+        ValueGraphBuilder.directed().allowsSelfLoops(false).build();
+    ValueGraph<IpsecPeerConfigId, IpsecSession> ipsecGraph = ipsecTopology.getGraph();
+    for (IpsecPeerConfigId endPointU : ipsecGraph.nodes()) {
       IpsecPeerConfig ipsecPeerU = networkConfigurations.getIpsecPeerConfig(endPointU);
       // not considering endpoints not based on Tunnel interfaces
       if (ipsecPeerU == null || ipsecPeerU.getTunnelInterface() == null) {
         continue;
       }
 
-      NodeInterfacePair tunnelEndPointU =
-          new NodeInterfacePair(endPointU.getHostName(), ipsecPeerU.getTunnelInterface());
-      tunnelIpsecEndpoints.add(tunnelEndPointU);
-
-      for (IpsecPeerConfigId endPointV : ipsecTopology.adjacentNodes(endPointU)) {
+      for (IpsecPeerConfigId endPointV : ipsecGraph.adjacentNodes(endPointU)) {
         IpsecPeerConfig ipsecPeerV = networkConfigurations.getIpsecPeerConfig(endPointV);
 
         // not considering endpoints not based on Tunnel interfaces
@@ -418,30 +417,92 @@ public class IpsecUtil {
           continue;
         }
 
-        NodeInterfacePair tunnelEndPointV =
-            new NodeInterfacePair(endPointV.getHostName(), ipsecPeerV.getTunnelInterface());
-
         // checking IPsec session and adding edge
-        Optional<IpsecSession> edgeIpsecSession = ipsecTopology.edgeValue(endPointU, endPointV);
-        if (edgeIpsecSession.isPresent()
-            && edgeIpsecSession.get().getNegotiatedIpsecP2Proposal() != null) {
-          successfulIPsecEdges.add(new Edge(tunnelEndPointU, tunnelEndPointV));
-        }
+        ipsecGraph
+            .edgeValue(endPointU, endPointV)
+            .filter(ipsecSession -> ipsecSession.getNegotiatedIpsecP2Proposal() != null)
+            .ifPresent(
+                ipsecSession ->
+                    prunedIpsecTopology.putEdgeValue(endPointU, endPointV, ipsecSession));
       }
     }
 
-    Set<Edge> failedIpsecEdges = new HashSet<>();
+    MutableValueGraph<IpsecPeerConfigId, IpsecSession> bidirCompatibleEdges =
+        ValueGraphBuilder.directed().allowsSelfLoops(false).build();
 
-    for (Edge edge : edges) {
-      NodeInterfacePair tail = edge.getTail();
-      NodeInterfacePair head = edge.getHead();
-      if ((tunnelIpsecEndpoints.contains(tail) || tunnelIpsecEndpoints.contains(head))
-          && (!successfulIPsecEdges.contains(edge)
-              || !successfulIPsecEdges.contains(edge.reverse()))) {
-        failedIpsecEdges.add(edge);
+    for (EndpointPair<IpsecPeerConfigId> endpointPair : prunedIpsecTopology.edges()) {
+      // if reverse edge exists
+      IpsecPeerConfigId nodeU = endpointPair.nodeU();
+      IpsecPeerConfigId nodeV = endpointPair.nodeV();
+      if (prunedIpsecTopology.hasEdgeConnecting(nodeV, nodeU)) {
+        bidirCompatibleEdges.putEdgeValue(
+            nodeU, nodeV, prunedIpsecTopology.edgeValue(nodeU, nodeV).get());
       }
     }
 
-    return failedIpsecEdges;
+    return new IpsecTopology(bidirCompatibleEdges);
+  }
+
+  private static SetMultimap<Ip, IpWildcardSetIpSpace> initPrivateIpsByPublicIp(
+      Map<String, Configuration> configurations) {
+    /*
+     * Very hacky mapping from public IP to set of spaces of possible natted private IPs.
+     * Does not currently support source-nat acl.
+     *
+     * The current implementation just considers every IP in every prefix on a non-masquerading
+     * interface (except the local address in each such prefix) to be a possible private IP
+     * match for every public IP referred to by every source-nat pool on a masquerading interface.
+     */
+    ImmutableSetMultimap.Builder<Ip, IpWildcardSetIpSpace> builder = ImmutableSetMultimap.builder();
+    for (Configuration c : configurations.values()) {
+      Collection<Interface> interfaces = c.getAllInterfaces().values();
+      Set<InterfaceAddress> nonNattedInterfaceAddresses =
+          interfaces.stream()
+              .filter(i -> !hasSourceNat(i.getOutgoingTransformation()))
+              .flatMap(i -> i.getAllAddresses().stream())
+              .collect(ImmutableSet.toImmutableSet());
+      Set<IpWildcard> blacklist =
+          nonNattedInterfaceAddresses.stream()
+              .map(address -> IpWildcard.create(address.getIp()))
+              .collect(ImmutableSet.toImmutableSet());
+      Set<IpWildcard> whitelist =
+          nonNattedInterfaceAddresses.stream()
+              .map(address -> IpWildcard.create(address.getPrefix()))
+              .collect(ImmutableSet.toImmutableSet());
+      IpWildcardSetIpSpace ipSpace =
+          IpWildcardSetIpSpace.builder().including(whitelist).excluding(blacklist).build();
+      interfaces.stream()
+          .flatMap(i -> sourceNatPoolIps(i.getOutgoingTransformation()))
+          .forEach(currentPoolIp -> builder.put(currentPoolIp, ipSpace));
+    }
+    return builder.build();
+  }
+
+  /**
+   * Helper to convert IPsec topology to a set of edges. Only converts the IPsec edges which are
+   * established over tunnel interfaces.
+   *
+   * @param ipsecTopology {@link IpsecTopology} for which edges are to be computed
+   * @param configurations {@link Map} of configuration objects
+   * @return {@link Set} of {@link Edge}s
+   */
+  public static Set<Edge> toEdgeSet(
+      @Nonnull IpsecTopology ipsecTopology, @Nonnull Map<String, Configuration> configurations) {
+    NetworkConfigurations nf = NetworkConfigurations.of(configurations);
+    ImmutableSet.Builder<Edge> edgesBuilder = ImmutableSet.builder();
+    for (EndpointPair<IpsecPeerConfigId> endPoint : ipsecTopology.getGraph().edges()) {
+      IpsecPeerConfig peerU = nf.getIpsecPeerConfig(endPoint.nodeU());
+      IpsecPeerConfig peerV = nf.getIpsecPeerConfig(endPoint.nodeV());
+      if (peerU != null
+          && peerV != null
+          && peerU.getTunnelInterface() != null
+          && peerV.getTunnelInterface() != null) {
+        edgesBuilder.add(
+            new Edge(
+                new NodeInterfacePair(endPoint.nodeU().getHostName(), peerU.getTunnelInterface()),
+                new NodeInterfacePair(endPoint.nodeV().getHostName(), peerV.getTunnelInterface())));
+      }
+    }
+    return edgesBuilder.build();
   }
 }

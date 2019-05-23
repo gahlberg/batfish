@@ -15,12 +15,11 @@
   "differential" : false,
   "includeOneTableKeys" : true,
   "instance" : {
-    "description" : "Find flows for which a filter takes a particular behavior",
+    "description" : "Finds flows for which a filter takes a particular behavior.",
     "instanceName" : "qname",
-    "longDescription" : "This question searches for flows for which a filter (access control list) has a particular behavior. The behaviors can be: that the filter permits the flow (permit), that it denies the flow (deny), or that the flow is matched by a particular line (matchLine <lineNumber>). Filters are selected using node and filter specifiers, which might match multiple filters. In this case, a (possibly different) flow will be found for each filter",
+    "longDescription" : "This question searches for flows for which a filter (access control list) has a particular behavior. The behaviors can be: that the filter permits the flow (permit), that it denies the flow (deny), or that the flow is matched by a particular line (matchLine <lineNumber>). Filters are selected using node and filter specifiers, which might match multiple filters. In this case, a (possibly different) flow will be found for each filter.",
     "tags" : [
-      "acl",
-      "dataPlane"
+      "acl"
     ],
     "variables" : {
       "action" : {
@@ -38,10 +37,10 @@
         "value" : false
       },
       "filters" : {
-        "description" : "Only evaluate filters that match this regex",
+        "description" : "Only evaluate filters that match this specifier",
         "displayName" : "Filters",
         "optional" : true,
-        "type" : "filter",
+        "type" : "filterSpec",
         "value" : ".*"
       },
       "headers" : {
@@ -49,13 +48,15 @@
         "displayName" : "Headers",
         "fields" : {
           "applications" : {
-            "optional" : true
+            "optional" : true,
+            "type" : "applicationSpec"
           },
           "dscps" : {
             "optional" : true
           },
           "dstIps" : {
-            "optional" : true
+            "optional" : true,
+            "type" : "ipSpaceSpec"
           },
           "dstPorts" : {
             "optional" : true
@@ -76,13 +77,15 @@
             "optional" : true
           },
           "ipProtocols" : {
-            "optional" : true
+            "optional" : true,
+            "type" : "ipProtocolSpec"
           },
           "packetLengths" : {
             "optional" : true
           },
           "srcIps" : {
-            "optional" : true
+            "optional" : true,
+            "type" : "ipSpaceSpec"
           },
           "srcPorts" : {
             "optional" : true
@@ -119,7 +122,7 @@
         "description" : "Only consider specified locations as possible sources",
         "displayName" : "Start Location",
         "optional" : true,
-        "type" : "string",
+        "type" : "locationSpec",
         "value" : "somenode"
       }
     }

@@ -9,12 +9,11 @@
     "nodes": "${nodes}",
     "startLocation": "${startLocation}",
     "instance": {
-        "description": "Find flows for which a filter takes a particular behavior",
+        "description": "Finds flows for which a filter takes a particular behavior.",
         "instanceName": "searchFilters",
-        "longDescription": "This question searches for flows for which a filter (access control list) has a particular behavior. The behaviors can be: that the filter permits the flow (permit), that it denies the flow (deny), or that the flow is matched by a particular line (matchLine <lineNumber>). Filters are selected using node and filter specifiers, which might match multiple filters. In this case, a (possibly different) flow will be found for each filter",
+        "longDescription": "This question searches for flows for which a filter (access control list) has a particular behavior. The behaviors can be: that the filter permits the flow (permit), that it denies the flow (deny), or that the flow is matched by a particular line (matchLine <lineNumber>). Filters are selected using node and filter specifiers, which might match multiple filters. In this case, a (possibly different) flow will be found for each filter.",
         "tags": [
-            "dataPlane",
-            "acl"
+                    "acl"
         ],
         "variables": {
             "action": {
@@ -30,9 +29,9 @@
                 "displayName": "Explain"
             },
             "filters": {
-                "description": "Only evaluate filters that match this regex",
+                "description": "Only evaluate filters that match this specifier",
                 "optional": true,
-                "type": "filter",
+                "type": "filterSpec",
                 "displayName": "Filters"
             },
             "headers": {
@@ -41,18 +40,18 @@
                 "type": "headerConstraint",
                 "displayName": "Headers",
                 "fields": {
-                    "applications": { "optional": true },
+                    "applications": { "optional": true, "type": "applicationSpec"},
                     "dscps": { "optional": true },
-                    "dstIps": { "optional": true },
+                    "dstIps": { "optional": true, "type": "ipSpaceSpec"},
                     "dstPorts": { "optional": true },
                     "ecns": { "optional": true },
                     "flowStates": { "optional": true },
                     "fragmentOffsets": { "optional": true },
                     "icmpCodes": { "optional": true },
                     "icmpTypes": { "optional": true },
-                    "ipProtocols": { "optional": true },
+                    "ipProtocols": { "optional": true, "type": "ipProtocolSpec"},
                     "packetLengths": { "optional": true },
-                    "srcIps": { "optional": true },
+                    "srcIps": { "optional": true, "type": "ipSpaceSpec"},
                     "srcPorts": { "optional": true },
                     "tcpFlags": { "optional": true }
                 }
@@ -72,7 +71,7 @@
             "startLocation": {
                 "description": "Only consider specified locations as possible sources",
                 "optional": true,
-                "type": "string",
+                "type": "locationSpec",
                 "displayName": "Start Location"
             }
         }

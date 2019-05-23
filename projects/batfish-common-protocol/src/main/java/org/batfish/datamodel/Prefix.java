@@ -4,16 +4,14 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import java.io.Serializable;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
-import org.batfish.common.BatfishException;
 
 /** An IPv4 Prefix */
 @ParametersAreNonnullByDefault
@@ -22,8 +20,8 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
   // Soft values: let it be garbage collected in times of pressure.
   // Maximum size 2^20: Just some upper bound on cache size, well less than GiB.
   //   (12 bytes seems smallest possible entry (long + int), would be 12 MiB total).
-  private static final Cache<Prefix, Prefix> CACHE =
-      CacheBuilder.newBuilder().softValues().maximumSize(1 << 20).build();
+  private static final LoadingCache<Prefix, Prefix> CACHE =
+      CacheBuilder.newBuilder().softValues().maximumSize(1 << 20).build(CacheLoader.from(x -> x));
 
   /** Maximum prefix length (number of bits) for a IPv4 address, which is 32 */
   public static final int MAX_PREFIX_LENGTH = 32;
@@ -33,16 +31,9 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
   /** A "0.0.0.0/0" prefix */
   public static final Prefix ZERO = create(Ip.ZERO, 0);
 
-  private static long getNetworkEnd(long networkStart, int prefixLength) {
-    return networkStart | ((1L << (32 - prefixLength)) - 1);
-  }
-
-  private static long numWildcardBitsToWildcardLong(int numBits) {
-    long wildcard = 0;
-    for (int i = 0; i < numBits; i++) {
-      wildcard |= (1L << i);
-    }
-    return wildcard;
+  private static long wildcardMaskForPrefixLength(int prefixLength) {
+    assert 0 <= prefixLength && prefixLength <= Prefix.MAX_PREFIX_LENGTH;
+    return (1L << (Prefix.MAX_PREFIX_LENGTH - prefixLength)) - 1;
   }
 
   /** Parse a {@link Prefix} from a string. */
@@ -51,15 +42,13 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
   public static Prefix parse(@Nullable String text) {
     checkArgument(text != null, "Invalid IPv4 prefix %s", text);
     String[] parts = text.split("/");
-    if (parts.length != 2) {
-      throw new BatfishException("Invalid prefix string: \"" + text + "\"");
-    }
+    checkArgument(parts.length == 2, "Invalid prefix string: \"%s\"", text);
     Ip ip = Ip.parse(parts[0]);
     int prefixLength;
     try {
       prefixLength = Integer.parseInt(parts[1]);
     } catch (NumberFormatException e) {
-      throw new BatfishException("Invalid prefix length: \"" + parts[1] + "\"", e);
+      throw new IllegalArgumentException("Invalid prefix length: \"" + parts[1] + "\"", e);
     }
     return create(ip, prefixLength);
   }
@@ -72,7 +61,7 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
   public static Optional<Prefix> tryParse(@Nonnull String text) {
     try {
       return Optional.of(parse(text));
-    } catch (IllegalArgumentException | BatfishException e) {
+    } catch (IllegalArgumentException e) {
       return Optional.empty();
     }
   }
@@ -95,7 +84,7 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
   private Prefix(Ip ip, int prefixLength) {
     checkArgument(
         prefixLength >= 0 && prefixLength <= MAX_PREFIX_LENGTH,
-        "Invalid prefix length %d",
+        "Invalid prefix length %s",
         prefixLength);
     if (ip.valid()) {
       // TODO: stop using Ip as a holder for invalid values.
@@ -108,12 +97,7 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
 
   public static Prefix create(Ip ip, int prefixLength) {
     Prefix p = new Prefix(ip, prefixLength);
-    try {
-      return CACHE.get(p, () -> p);
-    } catch (ExecutionException e) {
-      // This shouldn't happen, but handle anyway.
-      return p;
-    }
+    return CACHE.getUnchecked(p);
   }
 
   public static Prefix create(Ip address, Ip mask) {
@@ -137,6 +121,9 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
 
   @Override
   public int compareTo(Prefix rhs) {
+    if (this == rhs) {
+      return 0;
+    }
     int ret = _ip.compareTo(rhs._ip);
     if (ret != 0) {
       return ret;
@@ -145,14 +132,12 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
   }
 
   public boolean containsIp(Ip ip) {
-    long start = _ip.asLong();
-    long end = getNetworkEnd(start, _prefixLength);
-    long ipAsLong = ip.asLong();
-    return start <= ipAsLong && ipAsLong <= end;
+    long masked = ip.asLong() & ~wildcardMaskForPrefixLength(_prefixLength);
+    return masked == _ip.asLong();
   }
 
   public boolean containsPrefix(Prefix prefix) {
-    return containsIp(prefix._ip) && _prefixLength <= prefix._prefixLength;
+    return _prefixLength <= prefix._prefixLength && containsIp(prefix._ip);
   }
 
   @Override
@@ -168,7 +153,8 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
 
   @Nonnull
   public Ip getEndIp() {
-    return Ip.create(getNetworkEnd(_ip.asLong(), _prefixLength));
+    long networkEnd = _ip.asLong() | wildcardMaskForPrefixLength(_prefixLength);
+    return Ip.create(networkEnd);
   }
 
   public int getPrefixLength() {
@@ -177,8 +163,7 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
 
   @Nonnull
   public Ip getPrefixWildcard() {
-    int numWildcardBits = MAX_PREFIX_LENGTH - _prefixLength;
-    long wildcardLong = numWildcardBitsToWildcardLong(numWildcardBits);
+    long wildcardLong = wildcardMaskForPrefixLength(_prefixLength);
     return Ip.create(wildcardLong);
   }
 
@@ -189,10 +174,17 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(_ip, _prefixLength);
+    // We want a custom quick implementation, so don't call Objects.hash()
+    return 31 + 31 * Long.hashCode(_ip.asLong()) + _prefixLength;
   }
 
-  public PrefixIpSpace toIpSpace() {
+  @Nonnull
+  public IpSpace toIpSpace() {
+    if (_prefixLength == 0) {
+      return UniverseIpSpace.INSTANCE;
+    } else if (_prefixLength == MAX_PREFIX_LENGTH) {
+      return _ip.toIpSpace();
+    }
     return new PrefixIpSpace(this);
   }
 

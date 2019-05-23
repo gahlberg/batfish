@@ -5,13 +5,11 @@ import org.batfish.common.BaseSettings;
 import org.batfish.common.BatfishLogger;
 import org.batfish.common.BfConsts;
 import org.batfish.common.CoordConsts;
-import org.batfish.common.util.CommonUtil;
 
 public class Settings extends BaseSettings {
 
   public enum RunMode {
     batch,
-    gendatamodel,
     genquestions,
     interactive
   }
@@ -27,7 +25,6 @@ public class Settings extends BaseSettings {
   public static final String ARG_LOG_LEVEL = "loglevel";
   private static final String ARG_NO_SANITY_CHECK = "nosanitycheck";
   private static final String ARG_PERIOD_CHECK_WORK = "periodcheckworkms";
-  private static final String ARG_PRETTY_PRINT_ANSWERS = "prettyanswers";
   public static final String ARG_QUESTIONS_DIR = "questionsdir";
   public static final String ARG_RUN_MODE = "runmode";
   public static final String ARG_SERVICE_NAME = "servicename";
@@ -51,7 +48,6 @@ public class Settings extends BaseSettings {
   private String _logFile;
   private String _logLevel;
   private long _periodCheckWorkMs;
-  private boolean _prettyPrintAnswers;
   private String _questionsDir;
 
   private RunMode _runMode;
@@ -71,7 +67,7 @@ public class Settings extends BaseSettings {
 
   public Settings(String[] args) {
     super(
-        CommonUtil.getConfig(
+        getConfig(
             BfConsts.PROP_CLIENT_PROPERTIES_PATH,
             BfConsts.ABSPATH_CONFIG_FILE_NAME_CLIENT,
             ConfigurationLocator.class));
@@ -124,10 +120,6 @@ public class Settings extends BaseSettings {
 
   public long getPeriodCheckWorkMs() {
     return _periodCheckWorkMs;
-  }
-
-  public boolean getPrettyPrintAnswers() {
-    return _prettyPrintAnswers;
   }
 
   public String getQuestionsDir() {
@@ -203,7 +195,6 @@ public class Settings extends BaseSettings {
     setDefaultProperty(ARG_LOG_LEVEL, BatfishLogger.getLogLevelStr(BatfishLogger.LEVEL_OUTPUT));
     setDefaultProperty(ARG_NO_SANITY_CHECK, false);
     setDefaultProperty(ARG_PERIOD_CHECK_WORK, 1000);
-    setDefaultProperty(ARG_PRETTY_PRINT_ANSWERS, true);
     setDefaultProperty(ARG_RUN_MODE, RunMode.batch.toString());
     setDefaultProperty(ARG_SERVICE_NAME, "client-service");
     setDefaultProperty(ARG_SERVICE_WORK_PORT, CoordConsts.SVC_CFG_WORK_PORT);
@@ -243,8 +234,6 @@ public class Settings extends BaseSettings {
 
     addOption(
         ARG_PERIOD_CHECK_WORK, "period with which to check work (ms)", "period_check_work_ms");
-
-    addBooleanOption(ARG_PRETTY_PRINT_ANSWERS, "pretty print answers");
 
     addOption(ARG_QUESTIONS_DIR, "directory to output questions in", "questions_dir");
 
@@ -289,7 +278,6 @@ public class Settings extends BaseSettings {
     _logFile = getStringOptionValue(ARG_LOG_FILE);
     _logLevel = getStringOptionValue(ARG_LOG_LEVEL);
     _periodCheckWorkMs = getLongOptionValue(ARG_PERIOD_CHECK_WORK);
-    _prettyPrintAnswers = getBooleanOptionValue(ARG_PRETTY_PRINT_ANSWERS);
     _questionsDir = getStringOptionValue(ARG_QUESTIONS_DIR);
     _runMode = RunMode.valueOf(getStringOptionValue(ARG_RUN_MODE));
     _sanityCheck = !getBooleanOptionValue(ARG_NO_SANITY_CHECK);
@@ -326,10 +314,6 @@ public class Settings extends BaseSettings {
 
   public void setLogLevel(String logLevel) {
     _logLevel = logLevel;
-  }
-
-  public void setPrettyPrintAnswers(boolean prettyPrint) {
-    _prettyPrintAnswers = prettyPrint;
   }
 
   public void setSslDisable(boolean sslDisable) {

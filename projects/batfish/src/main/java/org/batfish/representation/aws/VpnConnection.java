@@ -19,6 +19,7 @@ import org.batfish.common.Warnings;
 import org.batfish.datamodel.BgpActivePeerConfig;
 import org.batfish.datamodel.BgpProcess;
 import org.batfish.datamodel.Configuration;
+import org.batfish.datamodel.ConfigurationFormat;
 import org.batfish.datamodel.DiffieHellmanGroup;
 import org.batfish.datamodel.EncryptionAlgorithm;
 import org.batfish.datamodel.IkeAuthenticationMethod;
@@ -45,6 +46,7 @@ import org.batfish.datamodel.RouteFilterList;
 import org.batfish.datamodel.RoutingProtocol;
 import org.batfish.datamodel.StaticRoute;
 import org.batfish.datamodel.SubRange;
+import org.batfish.datamodel.bgp.Ipv4UnicastAddressFamily;
 import org.batfish.datamodel.routing_policy.RoutingPolicy;
 import org.batfish.datamodel.routing_policy.expr.Conjunction;
 import org.batfish.datamodel.routing_policy.expr.DestinationNetwork;
@@ -304,6 +306,10 @@ public class VpnConnection implements AwsVpcEntity, Serializable {
     ImmutableSortedMap.Builder<String, IpsecPeerConfig> ipsecPeerConfigMapBuilder =
         ImmutableSortedMap.naturalOrder();
 
+    // BGP administrative costs
+    int ebgpAdminCost = RoutingProtocol.BGP.getDefaultAdministrativeCost(ConfigurationFormat.AWS);
+    int ibgpAdminCost = RoutingProtocol.IBGP.getDefaultAdministrativeCost(ConfigurationFormat.AWS);
+
     for (int i = 0; i < _ipsecTunnels.size(); i++) {
       int idNum = i + 1;
       String vpnId = _vpnConnectionId + "-" + idNum;
@@ -358,8 +364,7 @@ public class VpnConnection implements AwsVpcEntity, Serializable {
       if (ipsecTunnel.getVgwBgpAsn() != -1) {
         BgpProcess proc = vpnGatewayCfgNode.getDefaultVrf().getBgpProcess();
         if (proc == null) {
-          proc = new BgpProcess();
-          proc.setRouterId(ipsecTunnel.getVgwInsideAddress());
+          proc = new BgpProcess(ipsecTunnel.getVgwInsideAddress(), ebgpAdminCost, ibgpAdminCost);
           proc.setMultipathEquivalentAsPathMatchMode(MultipathEquivalentAsPathMatchMode.EXACT_PATH);
           vpnGatewayCfgNode.getDefaultVrf().setBgpProcess(proc);
         }
@@ -372,6 +377,7 @@ public class VpnConnection implements AwsVpcEntity, Serializable {
                 .setLocalAs(ipsecTunnel.getVgwBgpAsn())
                 .setLocalIp(ipsecTunnel.getVgwInsideAddress())
                 .setDefaultMetric(BGP_NEIGHBOR_DEFAULT_METRIC)
+                .setIpv4UnicastAddressFamily(Ipv4UnicastAddressFamily.instance())
                 .setSendCommunity(false);
 
         VpnGateway vpnGateway = region.getVpnGateways().get(_vpnGatewayId);
@@ -399,21 +405,22 @@ public class VpnConnection implements AwsVpcEntity, Serializable {
             .setLocalAs(ipsecTunnel.getVgwBgpAsn())
             .setLocalIp(vgwToVpcIfaceAddress)
             .setDefaultMetric(BGP_NEIGHBOR_DEFAULT_METRIC)
+            .setIpv4UnicastAddressFamily(Ipv4UnicastAddressFamily.instance())
             .setSendCommunity(true);
 
         // iBGP connection from VPC
         BgpActivePeerConfig.Builder vpcToVgwBgpPeerConfig = BgpActivePeerConfig.builder();
         vpcToVgwBgpPeerConfig.setPeerAddress(vgwToVpcIfaceAddress);
-        BgpProcess vpcProc = new BgpProcess();
+        BgpProcess vpcProc = new BgpProcess(vpcIfaceAddress, ebgpAdminCost, ibgpAdminCost);
         vpcNode.getDefaultVrf().setBgpProcess(vpcProc);
         vpcProc.setMultipathEquivalentAsPathMatchMode(
             MultipathEquivalentAsPathMatchMode.EXACT_PATH);
-        vpcProc.setRouterId(vpcIfaceAddress);
         vpcToVgwBgpPeerConfig.setBgpProcess(vpcProc);
         vpcToVgwBgpPeerConfig.setLocalAs(ipsecTunnel.getVgwBgpAsn());
         vpcToVgwBgpPeerConfig.setLocalIp(vpcIfaceAddress);
         vpcToVgwBgpPeerConfig.setRemoteAs(ipsecTunnel.getVgwBgpAsn());
         vpcToVgwBgpPeerConfig.setDefaultMetric(BGP_NEIGHBOR_DEFAULT_METRIC);
+        vpcToVgwBgpPeerConfig.setIpv4UnicastAddressFamily(Ipv4UnicastAddressFamily.instance());
         vpcToVgwBgpPeerConfig.setSendCommunity(true);
 
         String rpRejectAllName = "~REJECT_ALL~";

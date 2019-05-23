@@ -21,7 +21,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import org.batfish.common.BatfishException;
 import org.batfish.common.util.BatfishObjectMapper;
-import org.batfish.common.util.CommonUtil;
+import org.batfish.common.util.CollectionUtil;
 import org.skyscreamer.jsonassert.JSONAssert;
 
 public class NamedStructureEquivalenceSets<T> {
@@ -108,7 +108,6 @@ public class NamedStructureEquivalenceSets<T> {
   }
 
   private static final String PROP_SAME_NAMED_STRUCTURES = "sameNamedStructures";
-
   private static final String PROP_STRUCTURE_CLASS_NAME = "structureClassName";
 
   public static <T> Builder<T> builder(String structureClassName) {
@@ -146,17 +145,6 @@ public class NamedStructureEquivalenceSets<T> {
     return _structureClassName;
   }
 
-  public String prettyPrint(String indent) {
-    StringBuilder sb = new StringBuilder();
-    for (String name : _sameNamedStructures.keySet()) {
-      sb.append(indent + name + "\n");
-      for (NamedStructureEquivalenceSet<T> set : _sameNamedStructures.get(name)) {
-        sb.append(set.prettyPrint(indent + indent));
-      }
-    }
-    return sb.toString();
-  }
-
   @JsonProperty(PROP_SAME_NAMED_STRUCTURES)
   public void setSameNamedStructures(
       SortedMap<String, SortedSet<NamedStructureEquivalenceSet<T>>> sameNamedStructures) {
@@ -187,7 +175,7 @@ public class NamedStructureEquivalenceSets<T> {
                         .computeIfAbsent(
                             equivalenceSet.getRepresentativeElement(), n -> new LinkedHashSet<>())
                         .add(aclName)));
-    return CommonUtil.toImmutableMap(
+    return CollectionUtil.toImmutableMap(
         representativesByHostname, Entry::getKey, e -> ImmutableSet.copyOf(e.getValue()));
   }
 }

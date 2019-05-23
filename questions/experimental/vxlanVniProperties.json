@@ -4,11 +4,12 @@
     "nodes": "${nodes}",
     "properties": "${properties}",
     "instance": {
-        "description": "Returns configuration properties of VXLANs",
+        "description": "Returns configuration settings of VXLANs.",
         "instanceName": "vxlanVniProperties",
+        "longDescription": "Lists VNI-level network segment settings configured for VXLANs.",
         "tags": [
             "configuration",
-            "tunnel"
+            "vxlan"
         ],
         "variables": {
             "nodes": {

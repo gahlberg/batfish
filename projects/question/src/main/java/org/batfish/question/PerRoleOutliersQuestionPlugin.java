@@ -6,14 +6,12 @@ import com.google.auto.service.AutoService;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
-import java.util.Optional;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.batfish.common.Answerer;
-import org.batfish.common.BatfishException;
 import org.batfish.common.plugin.IBatfish;
 import org.batfish.common.plugin.Plugin;
 import org.batfish.datamodel.answers.AnswerElement;
@@ -30,9 +28,7 @@ import org.batfish.role.OutliersHypothesis;
 public class PerRoleOutliersQuestionPlugin extends QuestionPlugin {
 
   public static class PerRoleOutliersAnswerElement extends AnswerElement {
-
     private static final String PROP_NAMED_STRUCTURE_OUTLIERS = "namedStructureOutliers";
-
     private static final String PROP_SERVER_OUTLIERS = "serverOutliers";
 
     private SortedSet<NamedStructureOutlierSet<?>> _namedStructureOutliers;
@@ -52,65 +48,6 @@ public class PerRoleOutliersQuestionPlugin extends QuestionPlugin {
     @JsonProperty(PROP_SERVER_OUTLIERS)
     public SortedSet<OutlierSet<NavigableSet<String>>> getServerOutliers() {
       return _serverOutliers;
-    }
-
-    @Override
-    public String prettyPrint() {
-      if (_namedStructureOutliers.size() == 0 && _serverOutliers.size() == 0) {
-        return "";
-      }
-
-      StringBuilder sb = new StringBuilder("Results for per-role outliers\n");
-
-      for (OutlierSet<?> outlier : _serverOutliers) {
-        sb.append("  Hypothesis");
-        Optional<String> role = outlier.getRole();
-        role.ifPresent(s -> sb.append(" for role " + s));
-        sb.append(":\n");
-        sb.append("    every node should have the following set of ");
-        sb.append(outlier.getName() + ": " + outlier.getDefinition() + "\n");
-        sb.append("  Outliers: ");
-        sb.append(outlier.getOutliers() + "\n");
-        sb.append("  Conformers: ");
-        sb.append(outlier.getConformers() + "\n\n");
-      }
-
-      for (NamedStructureOutlierSet<?> outlier : _namedStructureOutliers) {
-        sb.append("  Hypothesis");
-        Optional<String> role = outlier.getRole();
-        role.ifPresent(s -> sb.append(" for role " + s));
-        sb.append(":\n");
-        switch (outlier.getHypothesis()) {
-          case SAME_DEFINITION:
-            sb.append(
-                "    every "
-                    + outlier.getStructType()
-                    + " named "
-                    + outlier.getName()
-                    + " should have the same definition\n");
-            break;
-          case SAME_NAME:
-            if (outlier.getNamedStructure() != null) {
-              sb.append("    every ");
-            } else {
-              sb.append("no ");
-            }
-            sb.append(
-                "node should define a "
-                    + outlier.getStructType()
-                    + " named "
-                    + outlier.getName()
-                    + "\n");
-            break;
-          default:
-            throw new BatfishException("Unexpected hypothesis" + outlier.getHypothesis());
-        }
-        sb.append("  Outliers: ");
-        sb.append(outlier.getOutliers() + "\n");
-        sb.append("  Conformers: ");
-        sb.append(outlier.getConformers() + "\n\n");
-      }
-      return sb.toString();
     }
 
     @JsonProperty(PROP_NAMED_STRUCTURE_OUTLIERS)
@@ -173,32 +110,11 @@ public class PerRoleOutliersQuestionPlugin extends QuestionPlugin {
     }
   }
 
-  // <question_page_comment>
-  /*
-   * Runs outlier detection on a per-role basis and then does a global ranking of the results.
-   *
-   * @type PerRoleOutliers multifile
-   * @param namedStructTypes Set of structure types to analyze drawn from ( AsPathAccessList,
-   *     AuthenticationKeyChain, CommunityList, IkePhase1Policy, IkePhase1Proposal, IkePhase1Key,
-   *     IpAccessList, IpsecPhase2Policy, IpsecPhase2Proposal, IpsecPeerConfig,, RouteFilterList,
-   *     RoutingPolicy) Default value is '[]' (which denotes all structure types).
-   *     This option is applicable to the "sameName" and "sameDefinition" hypotheses.
-   * @param nodeRegex Regular expression for names of nodes to include. Default value is '.*' (all
-   *     nodes).
-   * @param hypothesis A string that indicates the hypothesis being used to identify outliers.
-   *     "sameDefinition" indicates a hypothesis that same-named structures should have identical
-   *     definitions. "sameName" indicates a hypothesis that all nodes should have structures of the
-   *     same names. "sameServers" indicates a hypothesis that all nodes should have the same set of
-   *     protocol-specific servers (e.g., DNS servers). Default is "sameDefinition".
-   */
+  /** Runs outlier detection on a per-role basis and then does a global ranking of the results. */
   public static final class PerRoleOutliersQuestion extends Question {
-
     private static final String PROP_HYPOTHESIS = "hypothesis";
-
     private static final String PROP_NAMED_STRUCT_TYPES = "namedStructTypes";
-
     private static final String PROP_ROLE_DIMENSION = "roleDimension";
-
     private static final String PROP_ROLES = "roles";
 
     @Nonnull private OutliersHypothesis _hypothesis;

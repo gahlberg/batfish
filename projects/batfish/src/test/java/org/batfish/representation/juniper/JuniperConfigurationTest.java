@@ -43,7 +43,6 @@ import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IpAccessList;
 import org.batfish.datamodel.IpAccessListLine;
 import org.batfish.datamodel.IpWildcard;
-import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.Vrf;
 import org.batfish.datamodel.acl.AclLineMatchExpr;
 import org.batfish.datamodel.acl.AndMatchExpr;
@@ -70,16 +69,16 @@ public class JuniperConfigurationTest {
 
     FwTerm term = new FwTerm("term");
     String ipAddrPrefix = "1.2.3.0/24";
-    term.getFroms().add(new FwFromSourceAddress(new IpWildcard(Prefix.parse(ipAddrPrefix))));
+    term.getFroms().add(new FwFromSourceAddress(IpWildcard.parse(ipAddrPrefix)));
     term.getThens().add(FwThenAccept.INSTANCE);
     filter.getTerms().put("term", term);
     IpAccessList headerSpaceAcl = config.toIpAccessList(filter);
 
     Zone zone = new Zone("zone", new AddressBook("global", null));
     String interface1Name = "interface1";
-    zone.getInterfaces().add(new Interface(interface1Name));
+    zone.getInterfaces().add(interface1Name);
     String interface2Name = "interface2";
-    zone.getInterfaces().add(new Interface(interface2Name));
+    zone.getInterfaces().add(interface2Name);
     config.getMasterLogicalSystem().getZones().put("zone", zone);
     filter.setFromZone("zone");
     IpAccessList headerSpaceAndSrcInterfaceAcl = config.toIpAccessList(filter);
@@ -113,7 +112,7 @@ public class JuniperConfigurationTest {
                         new MatchSrcInterface(ImmutableList.of(interface1Name, interface2Name)),
                         new MatchHeaderSpace(
                             HeaderSpace.builder()
-                                .setSrcIps(new IpWildcard(Prefix.parse(ipAddrPrefix)).toIpSpace())
+                                .setSrcIps(IpWildcard.parse(ipAddrPrefix).toIpSpace())
                                 .build()))))));
   }
 
@@ -275,9 +274,9 @@ public class JuniperConfigurationTest {
 
     Zone zone = new Zone("zone", new AddressBook("global", null));
     String zoneInterface1Name = "zoneInterface1";
-    zone.getInterfaces().add(new Interface(zoneInterface1Name));
+    zone.getInterfaces().add(zoneInterface1Name);
     String zoneInterface2Name = "zoneInterface2";
-    zone.getInterfaces().add(new Interface(zoneInterface2Name));
+    zone.getInterfaces().add(zoneInterface2Name);
     config.getMasterLogicalSystem().getZones().put(zone.getName(), zone);
 
     RoutingInstance routingInstance = config.getMasterLogicalSystem().getDefaultRoutingInstance();

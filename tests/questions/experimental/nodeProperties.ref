@@ -5,8 +5,12 @@
   "differential" : false,
   "includeOneTableKeys" : true,
   "instance" : {
-    "description" : "Return configuration properties of nodes",
+    "description" : "Returns configuration settings of nodes.",
     "instanceName" : "qname",
+    "longDescription" : "Lists global settings of devices in the network. Settings that are specific to interfaces, routing protocols, etc. are available via other questions.",
+    "tags" : [
+      "configuration"
+    ],
     "variables" : {
       "nodes" : {
         "description" : "Include nodes matching this name or regex",

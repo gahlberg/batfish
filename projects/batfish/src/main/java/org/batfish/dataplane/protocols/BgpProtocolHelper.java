@@ -3,10 +3,10 @@ package org.batfish.dataplane.protocols;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableList.Builder;
 import com.google.common.collect.ImmutableSortedSet;
 import java.util.Set;
 import java.util.SortedSet;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.batfish.common.WellKnownCommunity;
 import org.batfish.datamodel.AbstractRoute;
@@ -15,41 +15,49 @@ import org.batfish.datamodel.AsSet;
 import org.batfish.datamodel.BgpActivePeerConfig;
 import org.batfish.datamodel.BgpPassivePeerConfig;
 import org.batfish.datamodel.BgpPeerConfig;
+import org.batfish.datamodel.BgpPeerConfigId;
+import org.batfish.datamodel.BgpProcess;
 import org.batfish.datamodel.BgpRoute;
 import org.batfish.datamodel.BgpSessionProperties;
+import org.batfish.datamodel.Bgpv4Route;
 import org.batfish.datamodel.ConfigurationFormat;
 import org.batfish.datamodel.GeneratedRoute;
-import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.OriginType;
 import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.Route;
 import org.batfish.datamodel.RoutingProtocol;
-import org.batfish.datamodel.Vrf;
-import org.batfish.dataplane.exceptions.BgpRoutePropagationException;
+import org.batfish.datamodel.bgp.community.Community;
+import org.batfish.datamodel.bgp.community.StandardCommunity;
 
 public class BgpProtocolHelper {
 
   /**
    * Perform BGP export transformations on a given route when sending an advertisement from {@code
-   * fromNeighbor} to {@code toNeighbor}
+   * fromNeighbor} to {@code toNeighbor} before export policy is applied.
+   *
+   * @param fromNeighbor {@link BgpPeerConfig} exporting {@code route}
+   * @param toNeighbor {@link BgpPeerConfig} to which to export {@code route}
+   * @param sessionProperties {@link BgpSessionProperties} representing the <em>incoming</em> edge:
+   *     i.e. the edge from {@code toNeighbor} to {@code fromNeighbor}
    */
   @Nullable
-  public static BgpRoute.Builder transformBgpRouteOnExport(
+  public static <R extends BgpRoute, B extends BgpRoute.Builder<B, R>> B transformBgpRoutePreExport(
       BgpPeerConfig fromNeighbor,
       BgpPeerConfig toNeighbor,
       BgpSessionProperties sessionProperties,
-      Vrf fromVrf,
-      Vrf toVrf,
-      AbstractRoute route)
-      throws BgpRoutePropagationException {
+      BgpProcess fromBgpProcess,
+      BgpProcess toBgpProcess,
+      AbstractRoute route,
+      B builder) {
 
-    BgpRoute.Builder transformedOutgoingRouteBuilder = new BgpRoute.Builder();
+    // sessionProperties represents incoming edge, so fromNeighbor's IP is its headIp
+    Ip fromNeighborIp = sessionProperties.getHeadIp();
 
     // Set the tag
-    transformedOutgoingRouteBuilder.setTag(route.getTag());
+    builder.setTag(route.getTag());
 
-    transformedOutgoingRouteBuilder.setReceivedFromIp(fromNeighbor.getLocalIp());
+    builder.setReceivedFromIp(fromNeighborIp);
     RoutingProtocol remoteRouteProtocol = route.getProtocol();
 
     boolean remoteRouteIsBgp =
@@ -58,21 +66,21 @@ public class BgpProtocolHelper {
     // Set originatorIP
     Ip originatorIp;
     if (!sessionProperties.isEbgp() && remoteRouteProtocol.equals(RoutingProtocol.IBGP)) {
-      BgpRoute bgpRemoteRoute = (BgpRoute) route;
+      Bgpv4Route bgpRemoteRoute = (Bgpv4Route) route;
       originatorIp = bgpRemoteRoute.getOriginatorIp();
     } else {
-      originatorIp = fromVrf.getBgpProcess().getRouterId();
+      originatorIp = fromBgpProcess.getRouterId();
     }
-    transformedOutgoingRouteBuilder.setOriginatorIp(originatorIp);
+    builder.setOriginatorIp(originatorIp);
 
     // note whether new route is received from route reflector client
-    transformedOutgoingRouteBuilder.setReceivedFromRouteReflectorClient(
+    builder.setReceivedFromRouteReflectorClient(
         !sessionProperties.isEbgp() && toNeighbor.getRouteReflectorClient());
 
     // Extract original route's asPath and communities if it had them
     AsPath originalAsPath = AsPath.empty();
-    SortedSet<Long> originalCommunities = ImmutableSortedSet.of();
-    if (route instanceof BgpRoute) {
+    SortedSet<Community> originalCommunities = ImmutableSortedSet.of();
+    if (route instanceof Bgpv4Route) {
       // Includes all routes with protocols BGP and IBGP, plus some with protocol AGGREGATE
       BgpRoute bgpRemoteRoute = (BgpRoute) route;
       originalAsPath = bgpRemoteRoute.getAsPath();
@@ -85,28 +93,23 @@ public class BgpProtocolHelper {
     }
     // Do not export route if it has NO_ADVERTISE community, or if its AS path contains the remote
     // peer's AS and local peer has not set getAllowRemoteOut
-    if (originalCommunities.contains(WellKnownCommunity.NO_ADVERTISE)
+    if (originalCommunities.contains(StandardCommunity.of(WellKnownCommunity.NO_ADVERTISE))
         || (sessionProperties.isEbgp()
             && originalAsPath.containsAs(toNeighbor.getLocalAs())
             && !fromNeighbor.getAllowRemoteAsOut())) {
       return null;
     }
     // Set transformed route's AS path and communities
-    ImmutableList.Builder<AsSet> transformedAsSets = new Builder<>();
-    if (sessionProperties.isEbgp()) {
-      transformedAsSets.add(AsSet.of(fromNeighbor.getLocalAs()));
-    }
-    transformedAsSets.addAll(originalAsPath.getAsSets());
-    transformedOutgoingRouteBuilder.setAsPath(AsPath.of(transformedAsSets.build()));
+    builder.setAsPath(originalAsPath);
     if (fromNeighbor.getSendCommunity()) {
-      transformedOutgoingRouteBuilder.addCommunities(originalCommunities);
+      builder.addCommunities(originalCommunities);
     }
 
     // clusterList, receivedFromRouteReflectorClient, (originType for bgp remote route)
     if (remoteRouteIsBgp) {
       BgpRoute bgpRemoteRoute = (BgpRoute) route;
 
-      transformedOutgoingRouteBuilder.setOriginType(bgpRemoteRoute.getOriginType());
+      builder.setOriginType(bgpRemoteRoute.getOriginType());
       /*
        * route reflection: reflect everything received from
        * clients to clients and non-clients. reflect everything
@@ -119,8 +122,7 @@ public class BgpProtocolHelper {
        *  iBGP speaker should not send out routes to iBGP neighbor whose router-id is
        *  same as originator id of advertisement
        */
-      if (!sessionProperties.isEbgp()
-          && toVrf.getBgpProcess().getRouterId().equals(remoteOriginatorIp)) {
+      if (!sessionProperties.isEbgp() && toBgpProcess.getRouterId().equals(remoteOriginatorIp)) {
         return null;
       }
       if (remoteRouteProtocol.equals(RoutingProtocol.IBGP) && !sessionProperties.isEbgp()) {
@@ -132,7 +134,7 @@ public class BgpProtocolHelper {
             bgpRemoteRoute.getReceivedFromRouteReflectorClient();
         boolean sendingToRouteReflectorClient = fromNeighbor.getRouteReflectorClient();
         Ip remoteReceivedFromIp = bgpRemoteRoute.getReceivedFromIp();
-        boolean remoteRouteOriginatedByRemoteNeighbor = remoteReceivedFromIp.equals(Ip.ZERO);
+        boolean remoteRouteOriginatedByRemoteNeighbor = Ip.ZERO.equals(remoteReceivedFromIp);
         if (!remoteRouteReceivedFromRouteReflectorClient
             && !sendingToRouteReflectorClient
             && !remoteRouteOriginatedByRemoteNeighbor) {
@@ -141,20 +143,19 @@ public class BgpProtocolHelper {
            */
           return null;
         }
-        transformedOutgoingRouteBuilder.addClusterList(bgpRemoteRoute.getClusterList());
+        builder.addClusterList(bgpRemoteRoute.getClusterList());
         if (!remoteRouteOriginatedByRemoteNeighbor) {
           // we are reflecting, so we need to get the clusterid associated with the
           // remoteRoute
           BgpPeerConfig remoteReceivedFromSession =
-              fromVrf
-                  .getBgpProcess()
+              fromBgpProcess
                   .getActiveNeighbors()
                   .get(Prefix.create(remoteReceivedFromIp, Prefix.MAX_PREFIX_LENGTH));
           long newClusterId = remoteReceivedFromSession.getClusterId();
-          transformedOutgoingRouteBuilder.addToClusterList(newClusterId);
+          builder.addToClusterList(newClusterId);
         }
-        Set<Long> localClusterIds = toVrf.getBgpProcess().getClusterIds();
-        Set<Long> outgoingClusterList = transformedOutgoingRouteBuilder.getClusterList();
+        Set<Long> localClusterIds = toBgpProcess.getClusterIds();
+        Set<Long> outgoingClusterList = builder.getClusterList();
         if (localClusterIds.stream().anyMatch(outgoingClusterList::contains)) {
           /*
            *  receiver will reject new route if it contains any of its local cluster ids
@@ -165,22 +166,22 @@ public class BgpProtocolHelper {
     }
 
     // Outgoing protocol
-    transformedOutgoingRouteBuilder.setProtocol(
-        sessionProperties.isEbgp() ? RoutingProtocol.BGP : RoutingProtocol.IBGP);
-    transformedOutgoingRouteBuilder.setNetwork(route.getNetwork());
+    builder.setProtocol(sessionProperties.isEbgp() ? RoutingProtocol.BGP : RoutingProtocol.IBGP);
+    builder.setNetwork(route.getNetwork());
 
     // Outgoing metric (MED) is preserved only if advertising to IBGP peer.
     if (remoteRouteIsBgp & !sessionProperties.isEbgp()) {
-      transformedOutgoingRouteBuilder.setMetric(route.getMetric());
+      builder.setMetric(route.getMetric());
     }
 
     // Outgoing nextHopIp & localPreference
     Ip nextHopIp;
     long localPreference;
     if (sessionProperties.isEbgp() || !remoteRouteIsBgp) {
-      nextHopIp = fromNeighbor.getLocalIp();
+      nextHopIp = fromNeighborIp;
       localPreference = BgpRoute.DEFAULT_LOCAL_PREFERENCE;
     } else {
+      // iBGP session AND the route is a BGP route
       nextHopIp = route.getNextHopIp();
       BgpRoute remoteIbgpRoute = (BgpRoute) route;
       localPreference = remoteIbgpRoute.getLocalPreference();
@@ -190,30 +191,29 @@ public class BgpProtocolHelper {
       if (fromNeighbor instanceof BgpPassivePeerConfig) {
         nextHopIp = ((BgpActivePeerConfig) toNeighbor).getPeerAddress();
       } else {
-        String nextHopInterface = route.getNextHopInterface();
-        InterfaceAddress nextHopAddress =
-            fromVrf.getInterfaces().get(nextHopInterface).getAddress();
-        if (nextHopAddress == null) {
-          throw new BgpRoutePropagationException("Route's nextHopInterface has no address");
-        }
-        nextHopIp = nextHopAddress.getIp();
+        // we somehow ended up with a BGP route that has no next-hop IP. This shouldn't happen,
+        // so make an assert. This will be a graceful ignore in prod.
+        assert !nextHopIp.equals(Route.UNSET_ROUTE_NEXT_HOP_IP);
+        return null;
       }
     }
-    transformedOutgoingRouteBuilder.setNextHopIp(nextHopIp);
-    transformedOutgoingRouteBuilder.setLocalPreference(localPreference);
+    builder.setNextHopIp(nextHopIp);
+    builder.setLocalPreference(localPreference);
 
     // Outgoing srcProtocol
-    transformedOutgoingRouteBuilder.setSrcProtocol(route.getProtocol());
-    return transformedOutgoingRouteBuilder;
+    builder.setSrcProtocol(route.getProtocol());
+    return builder;
   }
 
   /** Perform BGP import transformations on a given route after receiving an advertisement */
   @Nullable
-  public static BgpRoute.Builder transformBgpRouteOnImport(
+  public static <R extends BgpRoute, B extends BgpRoute.Builder<B, R>> B transformBgpRouteOnImport(
+      @Nonnull BgpPeerConfigId toConfigId,
       BgpPeerConfig toNeighbor,
       BgpSessionProperties sessionProperties,
       BgpRoute route,
-      ConfigurationFormat configFormat) {
+      ConfigurationFormat configFormat,
+      B builder) {
 
     if (route.getAsPath().containsAs(requireNonNull(toNeighbor.getLocalAs()))
         && !toNeighbor.getAllowLocalAsIn()) {
@@ -224,53 +224,74 @@ public class BgpProtocolHelper {
     RoutingProtocol targetProtocol =
         sessionProperties.isEbgp() ? RoutingProtocol.BGP : RoutingProtocol.IBGP;
 
-    BgpRoute.Builder transformedIncomingRouteBuilder = new BgpRoute.Builder();
-    transformedIncomingRouteBuilder.setOriginatorIp(route.getOriginatorIp());
-    transformedIncomingRouteBuilder.setReceivedFromIp(route.getReceivedFromIp());
-    transformedIncomingRouteBuilder.addClusterList(route.getClusterList());
-    transformedIncomingRouteBuilder.setReceivedFromRouteReflectorClient(
-        route.getReceivedFromRouteReflectorClient());
-    transformedIncomingRouteBuilder.setAsPath(route.getAsPath());
-    transformedIncomingRouteBuilder.addCommunities(route.getCommunities());
-    transformedIncomingRouteBuilder.setProtocol(targetProtocol);
-    transformedIncomingRouteBuilder.setNetwork(route.getNetwork());
-    transformedIncomingRouteBuilder.setNextHopIp(route.getNextHopIp());
-    transformedIncomingRouteBuilder.setLocalPreference(route.getLocalPreference());
-    transformedIncomingRouteBuilder.setAdmin(
-        targetProtocol.getDefaultAdministrativeCost(configFormat));
-    transformedIncomingRouteBuilder.setMetric(route.getMetric());
-    transformedIncomingRouteBuilder.setOriginType(route.getOriginType());
-    transformedIncomingRouteBuilder.setSrcProtocol(targetProtocol);
+    builder.setOriginatorIp(route.getOriginatorIp());
+    builder.setReceivedFromIp(route.getReceivedFromIp());
+    builder.addClusterList(route.getClusterList());
+    builder.setReceivedFromRouteReflectorClient(route.getReceivedFromRouteReflectorClient());
+    builder.setAsPath(route.getAsPath());
+    builder.addCommunities(route.getCommunities());
+    builder.setProtocol(targetProtocol);
+    builder.setNetwork(route.getNetwork());
+    if (toConfigId.getPeerInterface() != null) {
+      builder.setNextHopInterface(toConfigId.getPeerInterface());
+    }
+    builder.setNextHopIp(route.getNextHopIp());
+    builder.setLocalPreference(route.getLocalPreference());
+    builder.setAdmin(targetProtocol.getDefaultAdministrativeCost(configFormat));
+    builder.setMetric(route.getMetric());
+    builder.setOriginType(route.getOriginType());
+    builder.setSrcProtocol(targetProtocol);
 
-    return transformedIncomingRouteBuilder;
+    return builder;
   }
 
   /**
    * Convert an aggregate/generated route to a BGP route.
    *
-   * @param generatedRoute a {@link GeneratedRoute} to convert to a {@link BgpRoute}.
+   * @param generatedRoute a {@link GeneratedRoute} to convert to a {@link Bgpv4Route}.
    * @param routerId Router ID to set as the originatorIp for the resulting BGP route.
-   * @param nonRouting Whether to mark the BgpRoute as non-routing
+   * @param nonRouting Whether to mark the Bgpv4Route as non-routing
    */
-  public static BgpRoute convertGeneratedRouteToBgp(
+  public static Bgpv4Route convertGeneratedRouteToBgp(
       GeneratedRoute generatedRoute, Ip routerId, boolean nonRouting) {
-    BgpRoute.Builder b = new BgpRoute.Builder();
-    b.setAdmin(generatedRoute.getAdministrativeCost());
-    b.setAsPath(generatedRoute.getAsPath());
-    b.setCommunities(generatedRoute.getCommunities());
-    b.setMetric(generatedRoute.getMetric());
-    b.setSrcProtocol(RoutingProtocol.AGGREGATE);
-    b.setProtocol(RoutingProtocol.AGGREGATE);
-    b.setNetwork(generatedRoute.getNetwork());
-    b.setLocalPreference(BgpRoute.DEFAULT_LOCAL_PREFERENCE);
-    /*
-     * Note: Origin type and originator IP should get overwritten by export policy,
-     * but are needed initially
-     */
-    b.setOriginatorIp(routerId);
-    b.setOriginType(OriginType.INCOMPLETE);
-    b.setReceivedFromIp(Ip.ZERO);
-    b.setNonRouting(nonRouting);
-    return b.build();
+    return Bgpv4Route.builder()
+        .setAdmin(generatedRoute.getAdministrativeCost())
+        .setAsPath(generatedRoute.getAsPath())
+        .setCommunities(generatedRoute.getCommunities())
+        .setMetric(generatedRoute.getMetric())
+        .setSrcProtocol(RoutingProtocol.AGGREGATE)
+        .setProtocol(RoutingProtocol.AGGREGATE)
+        .setNetwork(generatedRoute.getNetwork())
+        .setLocalPreference(Bgpv4Route.DEFAULT_LOCAL_PREFERENCE)
+        /*
+         * Note: Origin type and originator IP should get overwritten by export policy,
+         * but are needed initially
+         */
+        .setOriginatorIp(routerId)
+        .setOriginType(OriginType.INCOMPLETE)
+        .setReceivedFromIp(Ip.ZERO)
+        .setNonRouting(nonRouting)
+        .build();
+  }
+
+  /**
+   * Perform BGP export transformations on a given route when sending an advertisement from {@code
+   * fromNeighbor} to {@code toNeighbor} after export policy as applied and route is accepted, but
+   * before route is sent onto the wire.
+   */
+  public static <R extends BgpRoute, B extends BgpRoute.Builder<B, R>>
+      void transformBgpRoutePostExport(
+          @Nonnull B routeBuilder,
+          @Nonnull BgpPeerConfig fromNeighbor,
+          @Nonnull BgpSessionProperties sessionProperties) {
+    if (sessionProperties.isEbgp()) {
+      // if eBGP, prepend as-path sender's as-path number
+      routeBuilder.setAsPath(
+          AsPath.of(
+              ImmutableList.<AsSet>builder()
+                  .add(AsSet.of(fromNeighbor.getLocalAs()))
+                  .addAll(routeBuilder.getAsPath().getAsSets())
+                  .build()));
+    }
   }
 }

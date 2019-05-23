@@ -5,7 +5,6 @@ import static org.junit.Assert.assertThat;
 
 import com.google.common.collect.ImmutableMap;
 import org.batfish.datamodel.AclIpSpace;
-import org.batfish.datamodel.AclIpSpaceLine;
 import org.batfish.datamodel.EmptyIpSpace;
 import org.batfish.datamodel.Flow;
 import org.batfish.datamodel.Ip;
@@ -49,10 +48,12 @@ public final class IpSpaceDescriberTest {
 
   @Test
   public void testVisitAclIpSpace() {
-    IpSpace lineIpSpace = UniverseIpSpace.INSTANCE;
+    IpSpace lineIpSpace = Ip.parse("1.2.3.4").toIpSpace();
+    IpSpace line2IpSpace = Ip.parse("1.2.3.5").toIpSpace();
     String lineIpSpaceName = "lineIpSpace";
     IpSpaceMetadata lineIpSpaceMetadata = new IpSpaceMetadata("line_space_name", "line_space_type");
-    IpSpace ipSpace = AclIpSpace.of(AclIpSpaceLine.permit(lineIpSpace));
+    IpSpace ipSpace =
+        AclIpSpace.builder().thenPermitting(lineIpSpace).thenPermitting(line2IpSpace).build();
     IpSpaceDescriber describerWithMetadata =
         new IpSpaceDescriber(
             new AclTracer(
@@ -70,10 +71,10 @@ public final class IpSpaceDescriberTest {
                 ImmutableMap.of(lineIpSpaceName, lineIpSpace),
                 ImmutableMap.of(lineIpSpaceName, lineIpSpaceMetadata)));
 
-    assertThat(ipSpace.accept(_describerNoNamesNorMetadata), equalTo("[0: universe]"));
+    assertThat(ipSpace.accept(_describerNoNamesNorMetadata), equalTo("[0: 1.2.3.4, 1: 1.2.3.5]"));
     assertThat(
         ipSpace.accept(describerWithLineMetadata),
-        equalTo("[0: 'line_space_type' named 'line_space_name']"));
+        equalTo("[0: 'line_space_type' named 'line_space_name', 1: 1.2.3.5]"));
     assertThat(ipSpace.accept(describerWithMetadata), equalTo(TEST_METADATA_DESCRIPTION));
   }
 
@@ -153,7 +154,7 @@ public final class IpSpaceDescriberTest {
 
   @Test
   public void testVisitIpWildcardIpSpace() {
-    IpSpace ipSpace = new IpWildcard("1.0.1.4:4.3.2.1").toIpSpace();
+    IpSpace ipSpace = IpWildcard.parse("1.0.1.4:4.3.2.1").toIpSpace();
     IpSpaceDescriber describerWithMetadata =
         new IpSpaceDescriber(
             new AclTracer(
@@ -171,8 +172,8 @@ public final class IpSpaceDescriberTest {
   public void testVisitIpWildcardSetIpSpace() {
     IpSpace ipSpace =
         IpWildcardSetIpSpace.builder()
-            .including(new IpWildcard("1.0.0.0:1.0.1.0"))
-            .excluding(new IpWildcard("2.0.0.0:0.1.0.1"))
+            .including(IpWildcard.parse("1.0.0.0:1.0.1.0"))
+            .excluding(IpWildcard.parse("2.0.0.0:0.1.0.1"))
             .build();
     IpSpaceDescriber describerWithMetadata =
         new IpSpaceDescriber(

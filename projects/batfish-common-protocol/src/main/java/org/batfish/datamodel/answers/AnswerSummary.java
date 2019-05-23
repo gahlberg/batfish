@@ -6,13 +6,9 @@ import com.google.common.base.Strings;
 
 /** A general way to summarize what the answer contains, using three basic integers */
 public class AnswerSummary {
-
   private static final String PROP_NOTES = "notes";
-
   private static final String PROP_NUM_FAILED = "numFailed";
-
   private static final String PROP_NUM_PASSED = "numPassed";
-
   private static final String PROP_NUM_RESULTS = "numResults";
 
   private String _notes = "";
@@ -66,18 +62,6 @@ public class AnswerSummary {
   @JsonProperty(PROP_NUM_RESULTS)
   public int getNumResults() {
     return _numResults;
-  }
-
-  public String prettyPrint() {
-    String retString = "";
-    if (_numPassed != 0 || _numFailed != 0) {
-      retString += String.format("Assertions: %d passed, %d failed; ", _numPassed, _numFailed);
-    }
-    retString += String.format("%d (non-assertion) results; ", _numResults);
-    if (!Strings.isNullOrEmpty(_notes)) {
-      retString += String.format("Notes: %s", _notes);
-    }
-    return retString;
   }
 
   public void reset() {

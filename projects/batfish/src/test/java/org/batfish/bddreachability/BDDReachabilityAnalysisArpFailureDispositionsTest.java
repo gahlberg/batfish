@@ -1,6 +1,6 @@
 package org.batfish.bddreachability;
 
-import static org.batfish.common.util.CommonUtil.toImmutableMap;
+import static org.batfish.common.util.CollectionUtil.toImmutableMap;
 import static org.batfish.datamodel.FlowDisposition.DELIVERED_TO_SUBNET;
 import static org.batfish.datamodel.FlowDisposition.EXITS_NETWORK;
 import static org.batfish.datamodel.FlowDisposition.INSUFFICIENT_INFO;
@@ -38,7 +38,7 @@ import org.batfish.main.Batfish;
 import org.batfish.specifier.InterfaceLocation;
 import org.batfish.specifier.IpSpaceAssignment;
 import org.batfish.specifier.Location;
-import org.batfish.z3.IngressLocation;
+import org.batfish.symbolic.IngressLocation;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -87,7 +87,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
   private BDDReachabilityAnalysisFactory initFactory() throws IOException {
     Batfish batfish = initBatfish(_configs);
     return new BDDReachabilityAnalysisFactory(
-        PKT, _configs, batfish.loadDataPlane().getForwardingAnalysis());
+        PKT, _configs, batfish.loadDataPlane().getForwardingAnalysis(), false, false);
   }
 
   private BDDReachabilityAnalysis initAnalysis(FlowDisposition disposition) throws IOException {

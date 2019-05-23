@@ -3,13 +3,11 @@ package org.batfish.specifier;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.MoreObjects;
-import java.util.Objects;
 import javax.annotation.Nonnull;
 
 /** Identifies the {@link Location} of an interface in the network. */
 public final class InterfaceLocation implements Location {
   private static final String PROP_INTERFACE_NAME = "interfaceName";
-
   private static final String PROP_NODE_NAME = "nodeName";
 
   private final @Nonnull String _interfaceName;
@@ -48,20 +46,19 @@ public final class InterfaceLocation implements Location {
       return false;
     }
     InterfaceLocation that = (InterfaceLocation) o;
-    return Objects.equals(_interfaceName, that._interfaceName)
-        && Objects.equals(_nodeName, that._nodeName);
+    return _interfaceName.equals(that._interfaceName) && _nodeName.equals(that._nodeName);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_interfaceName, _nodeName);
+    return 31 * _interfaceName.hashCode() + _nodeName.hashCode();
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(getClass())
-        .add(PROP_INTERFACE_NAME, _interfaceName)
         .add(PROP_NODE_NAME, _nodeName)
+        .add(PROP_INTERFACE_NAME, _interfaceName)
         .toString();
   }
 }

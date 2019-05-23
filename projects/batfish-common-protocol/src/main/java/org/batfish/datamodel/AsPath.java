@@ -4,23 +4,24 @@ import static com.google.common.base.MoreObjects.firstNonNull;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Comparators;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Ordering;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.commons.lang3.StringUtils;
 
 @ParametersAreNonnullByDefault
-public class AsPath implements Serializable, Comparable<AsPath> {
+public final class AsPath implements Serializable, Comparable<AsPath> {
 
   private static final long serialVersionUID = 1L;
+  private static final AsPath EMPTY = new AsPath(ImmutableList.of());
 
   /**
    * Returns true iff the provided AS number is reserved for private use by RFC 6696:
@@ -43,8 +44,11 @@ public class AsPath implements Serializable, Comparable<AsPath> {
   // Soft values: let it be garbage collected in times of pressure.
   // Maximum size 2^16: Just some upper bound on cache size, well less than GiB.
   //   (24 bytes seems smallest possible entry (list(set(long)), would be 1.5 MiB total).
-  private static final Cache<List<AsSet>, AsPath> CACHE =
-      CacheBuilder.newBuilder().softValues().maximumSize(1 << 16).build();
+  private static final LoadingCache<ImmutableList<AsSet>, AsPath> CACHE =
+      CacheBuilder.newBuilder()
+          .softValues()
+          .maximumSize(1 << 16)
+          .build(CacheLoader.from(AsPath::new));
 
   private AsPath(ImmutableList<AsSet> asSets) {
     _asSets = asSets;
@@ -57,7 +61,7 @@ public class AsPath implements Serializable, Comparable<AsPath> {
 
   /** Create and return a new empty {@link AsPath}. */
   public static AsPath empty() {
-    return AsPath.of(ImmutableList.of());
+    return EMPTY;
   }
 
   /** Create and return a new {@link AsPath} of length 1 using the given {@link AsSet}. */
@@ -67,13 +71,11 @@ public class AsPath implements Serializable, Comparable<AsPath> {
 
   /** Create and return a new {@link AsPath} of the given {@link AsSet AsSets}. */
   public static AsPath of(List<AsSet> asSets) {
-    ImmutableList<AsSet> immutableValue = ImmutableList.copyOf(asSets);
-    try {
-      return CACHE.get(immutableValue, () -> new AsPath(immutableValue));
-    } catch (ExecutionException e) {
-      // This shouldn't happen, but handle anyway.
-      return new AsPath(immutableValue);
+    if (asSets.isEmpty()) {
+      return empty();
     }
+    ImmutableList<AsSet> immutableValue = ImmutableList.copyOf(asSets);
+    return CACHE.getUnchecked(immutableValue);
   }
 
   /**

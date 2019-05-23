@@ -23,7 +23,7 @@ public class PermittedByAclTest {
   private NetworkFactory _nf;
 
   private static Flow createFlow(String ipAddrStr) {
-    Flow.Builder b = new Flow.Builder();
+    Flow.Builder b = Flow.builder();
     b.setIngressNode("ingressNode");
     b.setSrcIp(Ip.parse(ipAddrStr));
     b.setTag("test");
@@ -40,7 +40,7 @@ public class PermittedByAclTest {
             .setMatchCondition(
                 new MatchHeaderSpace(
                     HeaderSpace.builder()
-                        .setSrcIps(ImmutableSet.of(new IpWildcard(srcIpWildcard)))
+                        .setSrcIps(ImmutableSet.of(IpWildcard.parse(srcIpWildcard)))
                         .build()))
             .setAction(lineAction)
             .build();

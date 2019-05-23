@@ -23,7 +23,7 @@ import java.util.SortedMap;
 import java.util.stream.Collectors;
 import net.sf.javabdd.BDD;
 import org.batfish.common.bdd.BDDPacket;
-import org.batfish.common.util.CommonUtil;
+import org.batfish.common.util.CollectionUtil;
 import org.batfish.datamodel.AclIpSpace;
 import org.batfish.datamodel.AclIpSpaceLine;
 import org.batfish.datamodel.Configuration;
@@ -48,7 +48,6 @@ import org.batfish.datamodel.acl.NotMatchExpr;
 import org.batfish.datamodel.acl.OrMatchExpr;
 import org.batfish.datamodel.acl.PermittedByAcl;
 import org.batfish.datamodel.answers.AclSpecs;
-import org.batfish.datamodel.answers.FilterLineReachabilityRows;
 import org.batfish.specifier.MockSpecifierContext;
 import org.batfish.specifier.SpecifierContext;
 import org.junit.Before;
@@ -189,12 +188,12 @@ public class FilterLineReachabilityAnswererTest {
 
     // we should get an empty set when we are ignoring generated filters
     assertThat(
-        getSpecifiedFilters(new FilterLineReachabilityQuestion(null, null, true), ctxt),
+        getSpecifiedFilters(new FilterLineReachabilityQuestion((String) null, null, true), ctxt),
         equalTo(ImmutableMap.of("c1", ImmutableSet.of())));
 
     // we should get the one acl we put in otherwise
     assertThat(
-        getSpecifiedFilters(new FilterLineReachabilityQuestion(null, null, false), ctxt),
+        getSpecifiedFilters(new FilterLineReachabilityQuestion((String) null, null, false), ctxt),
         equalTo(ImmutableMap.of("c1", ImmutableSet.of(aclGenerated))));
   }
 
@@ -623,7 +622,7 @@ public class FilterLineReachabilityAnswererTest {
     BDD ddos2 = p.getSrcIp().value(Ip.parse("1.2.3.2").asLong());
     BDD ddos3 = p.getSrcIp().value(Ip.parse("1.2.3.3").asLong());
     // permit tcp any any eq ssh
-    BDD tcp = p.getIpProtocol().value(IpProtocol.TCP.number());
+    BDD tcp = p.getIpProtocol().value(IpProtocol.TCP);
     BDD ssh = tcp.and(p.getDstPort().value(22));
     // permit tcp any DST_IP eq ssh
     BDD selectiveSSH = ssh.and(p.getDstIp().value(Ip.parse("2.3.4.5").asLong()));
@@ -693,7 +692,7 @@ public class FilterLineReachabilityAnswererTest {
   public void testDifferentActionPreservation() {
     BDDPacket p = new BDDPacket();
     BDD slash32 = p.getDstIp().value(Ip.parse("1.2.3.4").asLong());
-    BDD tcp = p.getIpProtocol().value(IpProtocol.TCP.number());
+    BDD tcp = p.getIpProtocol().value(IpProtocol.TCP);
     BDD not80 = tcp.and(p.getDstPort().value(80).not());
 
     /*
@@ -722,7 +721,7 @@ public class FilterLineReachabilityAnswererTest {
   @Test
   public void testSameActionNotReported() {
     BDDPacket p = new BDDPacket();
-    BDD tcp = p.getIpProtocol().value(IpProtocol.TCP.number());
+    BDD tcp = p.getIpProtocol().value(IpProtocol.TCP);
     BDD tcpEstablished = p.getTcpAck().or(p.getTcpRst());
     BDD slash32 = p.getDstIp().value(Ip.parse("1.2.3.4").asLong());
     BDD port80 = p.getDstPort().value(80);
@@ -747,7 +746,7 @@ public class FilterLineReachabilityAnswererTest {
   private List<AclSpecs> getAclSpecs(Set<String> configNames) {
     SortedMap<String, Configuration> configs = ImmutableSortedMap.of("c1", _c1, "c2", _c2);
     Map<String, Set<IpAccessList>> acls =
-        CommonUtil.toImmutableMap(
+        CollectionUtil.toImmutableMap(
             configs,
             Entry::getKey,
             entry ->

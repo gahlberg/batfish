@@ -11,6 +11,36 @@ QUESTIONS = glob(REPO + '/questions*/**/*.json', recursive=True)
 
 CAMEL_CASE_PATTERN = re.compile(r'^[a-z][a-z0-9]*([A-Z][a-z0-9]+)*$')
 
+VALID_TAGS = {"acl",  # acl and firewall related
+              "bgp",  # bgp related
+              "configuration",  # produce configuration data
+              "differential",  # differential question
+              "dataplane",  # need dataplane computation
+              "eigrp",  # EIGRP related
+              "hygiene",  # hygiene type check on configs
+              "ipsec",  # IPSec related
+              "isis",  # isis related
+              "initialization",  # shows information related to snapshot initialization
+              "mlag",  # MLAG related
+              "ospf",  # ospf related
+              "other",  # does not fit in any other group
+              "reachability",  # reachability or flow search type question
+              "rip",  # RIP related
+              "routing",  # helps analyze routing
+              "specifiers",  # resolves a specifier
+              "status",  # checks for pairwise compatibility
+              "topology",  # produces some type of topology
+              "traceroute",  # traceroute
+              "vip",  # VIP related (load balancing)
+              "vlan",  # VLAN related
+              "vxlan"  # VXLAN related
+              }
+
+# tags that determine the primary category of the question. presently, there can be only one such tag in the template.
+CATEGORY_TAGS = {"acl", "configuration", "hygiene", "initialization", "other", "routing", "reachability", "specifiers",
+                 "status", "topology", "traceroute"}
+
+
 @pytest.fixture(scope='module', params=QUESTIONS)
 def question_path(request):
     yield path.relpath(request.param, REPO)
@@ -30,6 +60,25 @@ def question(question_path):
     assert 'class' in q
     assert 'instance' in q
     return q
+
+
+def test_description(question):
+    """Tests that all questions have a non-trivial description."""
+    assert 'description' in question['instance']
+    description = question['instance']['description']
+    # there shouldn't be whitespace at the beginning or end
+    assert description.strip() == description
+    words = description.split()
+    # we should have at least three words
+    assert len(words) >= 3
+    # the first letter should be capitalized
+    assert description[0].isupper()
+    # the description should end with a period
+    assert description.endswith(".")
+    # the description should not have two periods at the end
+    assert not description.endswith("..")
+    # the last letter of the first word should be 's'
+    assert words[0][-1] == "s"
 
 
 def test_name_and_filename_match(question_path, question):
@@ -84,6 +133,39 @@ def test_instance_vars_with_values(question):
             assert 'description' in value, 'add description to {} or whitelist it'.format(name)
 
 
+def test_long_description(question):
+    """Tests that all questions have a non-trivial long descriptions."""
+    assert 'description' in question['instance']
+    assert 'longDescription' in question['instance']
+    description = question['instance']['description']
+    longDescription = question['instance']['longDescription']
+    # there shouldn't be whitespace at the beginning or end
+    assert longDescription.strip() == longDescription
+    words = longDescription.split()
+    # we should have at least five words
+    assert len(words) >= 5
+    # the first letter should be capitalized
+    assert longDescription[0].isupper()
+    # long description should end with a period
+    assert longDescription.endswith(".")
+    # long description should not have two periods at the end
+    assert not longDescription.endswith("..")
+    # description should not be the same as long description
+    assert longDescription != description
+
+
+def test_tags(question):
+    """Tests that all questions have valid tags."""
+    assert 'tags' in question['instance']
+    tags = set(question['instance']['tags'])
+    # there should be at least one tag
+    assert len(tags) >= 1
+    # each tags should be in VALID_TAGS
+    assert len(tags - VALID_TAGS) == 0
+    # there should be exactly one category-defining tag
+    assert len(tags.intersection(CATEGORY_TAGS)) == 1
+
+
 def test_types(question):
     """Tests (partially) that instance variable properties have the correct types."""
     instance = question['instance']
@@ -96,8 +178,10 @@ def test_types(question):
 
 
 NO_ORDERED_VARIABLE_NAMES_QUESTIONS = {
+    'questions/stable/bgpEdges.json',
     'questions/stable/definedStructures.json',
     'questions/stable/edges.json',
+    'questions/stable/eigrpEdges.json',
     'questions/stable/ipsecSessionStatus.json',
     'questions/stable/referencedStructures.json',
     'questions/stable/routes.json',
@@ -106,26 +190,37 @@ NO_ORDERED_VARIABLE_NAMES_QUESTIONS = {
     'questions/experimental/bgpProcessConfiguration.json',
     'questions/experimental/bgpSessionCompatibility.json',
     'questions/experimental/bgpSessionStatus.json',
-    'questions/experimental/bidirectionalTraceroute.json',
     'questions/experimental/differentialReachability.json',
     'questions/experimental/filterLineReachability.json',
     'questions/experimental/filterTable.json',
     'questions/experimental/interfaceMtu.json',
     'questions/experimental/interfaceProperties.json',
+    'questions/stable/ipsecEdges.json',
+    'questions/stable/isisEdges.json',
+    'questions/stable/layer1Edges.json',
+    'questions/stable/layer3Edges.json',
     'questions/experimental/mlagProperties.json',
     'questions/experimental/multipathConsistency.json',
     'questions/experimental/namedStructures.json',
     'questions/experimental/neighbors.json',
     'questions/experimental/nodeProperties.json',
     'questions/experimental/nodes.json',
+    'questions/stable/ospfEdges.json',
     'questions/experimental/ospfProperties.json',
     'questions/experimental/prefixTracer.json',
     'questions/experimental/resolveFilterSpecifier.json',
     'questions/experimental/resolveInterfaceSpecifier.json',
+    'questions/experimental/resolveIpSpecifier.json',
+    'questions/experimental/resolveIpsOfLocationSpecifier.json',
+    'questions/experimental/resolveLocationSpecifier.json',
+    'questions/experimental/resolveNodeSpecifier.json',
+    'questions/stable/ripEdges.json',
     'questions/experimental/searchFilters.json',
     'questions/experimental/switchedVlanProperties.json',
+    'questions/stable/vxlanEdges.json',
     'questions/experimental/vxlanVniProperties.json',
 }
+
 
 def test_ordered_variable_names_is_valid(question, question_path):
     """Tests that if orderedVariableNames is present, it includes all instance variables."""
@@ -152,7 +247,7 @@ def test_indented_with_spaces(question_text, question_path):
     if '\t' in question_text:
         raise ValueError(
             "Found tab indentation in question {}. Please run \"sed -i '' 's/\\\\t/    /g' {}\" to switch to spaces.".format(
-                    question_path, path.join(REPO, question_path)))
+                question_path, path.join(REPO, question_path)))
 
 
 if __name__ == '__main__':

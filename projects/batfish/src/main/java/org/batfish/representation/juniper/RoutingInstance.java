@@ -23,7 +23,6 @@ public class RoutingInstance implements Serializable {
   private static final double DEFAULT_OSPF_REFERENCE_BANDWIDTH = 1E9;
   private static final String MASTER_INTERFACE_NAME = "MASTER_INTERFACE";
 
-  /** */
   private static final long serialVersionUID = 1L;
 
   @Nullable private Long _as;
@@ -51,6 +50,7 @@ public class RoutingInstance implements Serializable {
   private final Map<String, NodeDevice> _nodeDevices;
   private Map<Long, OspfArea> _ospfAreas;
   private List<String> _ospfExportPolicies;
+  @Nullable private Boolean _ospfDisable;
   private double _ospfReferenceBandwidth;
   private final Map<String, RoutingInformationBase> _ribs;
   private Ip _routerId;
@@ -193,6 +193,11 @@ public class RoutingInstance implements Serializable {
     return _ospfExportPolicies;
   }
 
+  @Nullable
+  public Boolean getOspfDisable() {
+    return _ospfDisable;
+  }
+
   public double getOspfReferenceBandwidth() {
     return _ospfReferenceBandwidth;
   }
@@ -236,6 +241,10 @@ public class RoutingInstance implements Serializable {
   public void setHostname(String hostname) {
     checkNotNull(hostname, "'hostname' cannot be null");
     _hostname = hostname.toLowerCase();
+  }
+
+  public void setOspfDisable(boolean ospfDisable) {
+    _ospfDisable = ospfDisable;
   }
 
   public void setOspfReferenceBandwidth(double ospfReferenceBandwidth) {

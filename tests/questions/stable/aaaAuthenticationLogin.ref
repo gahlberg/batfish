@@ -4,13 +4,11 @@
   "differential" : false,
   "includeOneTableKeys" : true,
   "instance" : {
-    "description" : "Return nodes that do not require authentication on all lines",
+    "description" : "Returns nodes that do not require authentication on all virtual terminal lines.",
     "instanceName" : "qname",
+    "longDescription" : "Lists all nodes in the network for which there is a virtual terminal line that does not require authentication.",
     "tags" : [
-      "aaa",
-      "authentication",
-      "ciscoFamily",
-      "dataModel"
+      "hygiene"
     ],
     "variables" : {
       "nodes" : {

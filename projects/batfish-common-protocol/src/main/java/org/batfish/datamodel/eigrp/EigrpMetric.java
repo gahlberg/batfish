@@ -15,7 +15,6 @@ import javax.annotation.ParametersAreNullableByDefault;
 
 /** Handles EIGRP metric information. */
 public class EigrpMetric implements Serializable {
-
   private static final String PROP_CLASSIC_BANDWIDTH = "classic-bandwidth";
   private static final String PROP_CLASSIC_DELAY = "classic-delay";
   private static final String PROP_NAMED_BANDWIDTH = "named-bandwidth";
@@ -224,22 +223,6 @@ public class EigrpMetric implements Serializable {
     // TODO make configurable using 'metric rib-scale'
     int namedRibScale = 128;
     return getCost() / ((_mode == EigrpProcessMode.NAMED) ? namedRibScale : 1);
-  }
-
-  public String prettyPrint() {
-    if (_mode == CLASSIC) {
-      return "BW "
-          + EIGRP_BANDWIDTH / _classicBandwidth / 1000L
-          + " Mbit, DLY "
-          + _classicDelay * 10L
-          + " usec";
-    } else {
-      return "BW "
-          + _namedBandwidth / 1000L
-          + " Mbit, DLY "
-          + _namedDelay / EIGRP_DELAY_PICO
-          + " usec";
-    }
   }
 
   @ParametersAreNullableByDefault

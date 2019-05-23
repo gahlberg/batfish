@@ -8,8 +8,12 @@
   "differential" : false,
   "includeOneTableKeys" : true,
   "instance" : {
-    "description" : "Return named structure definitions",
+    "description" : "Returns named structure definitions.",
     "instanceName" : "qname",
+    "longDescription" : "Return structures defined in the configurations, represented in a vendor-independent JSON format.",
+    "tags" : [
+      "configuration"
+    ],
     "variables" : {
       "ignoreGenerated" : {
         "description" : "Whether to ignore auto-generated structures",

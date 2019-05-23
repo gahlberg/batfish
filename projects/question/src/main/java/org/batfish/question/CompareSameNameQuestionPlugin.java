@@ -49,9 +49,7 @@ public class CompareSameNameQuestionPlugin extends QuestionPlugin {
   public static final String DEBUG_FLAG_ASSUME_ALL_UNIQUE = "compareSameName.assumeAllUnique";
 
   public static class CompareSameNameAnswerElement extends AnswerElement {
-
     private static final String PROP_EQUIVALENCE_SETS_MAP = "equivalenceSetsMap";
-
     private static final String PROP_NODES = "nodes";
 
     /** Equivalence sets are keyed by classname */
@@ -72,11 +70,6 @@ public class CompareSameNameQuestionPlugin extends QuestionPlugin {
       _equivalenceSets.put(className, sets);
     }
 
-    private String equivalenceSetToString(
-        String indent, String name, NamedStructureEquivalenceSets<?> nseSets) {
-      return indent + name + "\n" + nseSets.prettyPrint(indent + indent);
-    }
-
     @JsonProperty(PROP_EQUIVALENCE_SETS_MAP)
     public SortedMap<String, NamedStructureEquivalenceSets<?>> getEquivalenceSets() {
       return _equivalenceSets;
@@ -85,17 +78,6 @@ public class CompareSameNameQuestionPlugin extends QuestionPlugin {
     @JsonProperty(PROP_NODES)
     public Set<String> getNodes() {
       return _nodes;
-    }
-
-    @Override
-    public String prettyPrint() {
-      StringBuilder sb = new StringBuilder("Results for comparing same name structure\n");
-      for (String name : _equivalenceSets.keySet()) {
-        if (_equivalenceSets.get(name).size() > 0) {
-          sb.append(equivalenceSetToString("  ", name, _equivalenceSets.get(name)));
-        }
-      }
-      return sb.toString();
     }
   }
 
@@ -210,17 +192,11 @@ public class CompareSameNameQuestionPlugin extends QuestionPlugin {
    * different in the tenth router, the ACL is likely misconfigured on the tenth router.
    */
   public static final class CompareSameNameQuestion extends Question implements INodeRegexQuestion {
-
     private static final String PROP_COMPARE_GENERATED = "compareGenerated";
-
     private static final String PROP_EXCLUDED_NAMED_STRUCT_TYPES = "excludedNamedStructTypes";
-
     private static final String PROP_MISSING = "missing";
-
     private static final String PROP_NAMED_STRUCT_TYPES = "namedStructTypes";
-
     private static final String PROP_NODE_REGEX = "nodeRegex";
-
     private static final String PROP_SINGLETONS = "singletons";
 
     /** Whether to also compare auto-generated structures */

@@ -3,13 +3,12 @@
     "differential": false,
     "maxTraces": "${maxTraces}",
     "instance": {
-        "description": "Detect forwarding loops.",
+        "description": "Detects forwarding loops.",
         "instanceName": "detectLoops",
-        "longDescription": "Finds forwarding loops",
+        "longDescription": "Searches across all possible flows in the network and returns example flows that will experience forwarding loops.",
         "tags": [
-            "dataPlane",
-            "reachability",
-            "loop"
+            "dataplane",
+            "reachability"
         ],
         "variables": {
              "maxTraces": {
